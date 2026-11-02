@@ -1,4 +1,4 @@
-.PHONY: setup build up down logs test clean migrate
+.PHONY: setup build up down logs test lint format clean migrate seed
 
 setup:
 	python3 -m venv .venv
@@ -19,6 +19,13 @@ logs:
 test:
 	pytest tests/ -v
 
+lint:
+	ruff check backend/ ai/ workers/ engines/
+	mypy backend/ ai/ --ignore-missing-imports
+
+format:
+	black backend/ ai/ workers/ engines/
+
 clean:
 	docker-compose -f infrastructure/docker-compose.yml down -v
 	rm -f test_kravigil.db
@@ -26,3 +33,6 @@ clean:
 migrate:
 	alembic revision --autogenerate -m "Auto migration"
 	alembic upgrade head
+
+seed:
+	python scripts/seed_db.py
