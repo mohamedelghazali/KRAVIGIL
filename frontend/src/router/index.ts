@@ -1,15 +1,21 @@
-import { createRouter, createWebHistory } from "vue-router";
+import { createRouter, createWebHistory } from 'vue-router'
+import Dashboard from '../views/Dashboard.vue'
+import Reports from '../views/Reports.vue'
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHistory(),
   routes: [
-    { path: "/", redirect: "/overview" },
-    { path: "/overview", component: () => import("../views/Overview.vue") },
-    { path: "/assets", component: () => import("../views/Assets.vue") },
-    { path: "/scans", component: () => import("../views/Scans.vue") },
-    { path: "/findings", component: () => import("../views/Findings.vue") },
-    { path: "/reports", component: () => import("../views/Reports.vue") },
-  ],
-});
+    { path: '/', component: Dashboard, meta: { requiresAuth: true } },
+    { path: '/reports', component: Reports, meta: { requiresAuth: true } },
+    { path: '/login', component: () => import('../views/Login.vue') }
+  ]
+})
 
-export default router;
+router.beforeEach((to) => {
+  const token = localStorage.getItem('token')
+  if (to.meta.requiresAuth && !token) return '/login'
+  if (to.path === '/login' && token) return '/'
+  return true
+})
+
+export default router
