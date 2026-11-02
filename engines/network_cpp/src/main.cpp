@@ -5,7 +5,6 @@
 #include <atomic>
 #include <chrono>
 #include <cstdlib>
-#include <cstring>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -30,7 +29,6 @@ using kravigil::network::v1::ScanEvent;
 using kravigil::network::v1::ScanRequest;
 
 namespace {
-
 constexpr const char* ENGINE_VERSION = "1.1.0";
 constexpr uint32_t MIN_TIMEOUT_MS = 100;
 constexpr uint32_t MAX_TIMEOUT_MS = 30000;
@@ -42,24 +40,22 @@ std::string get_env(const char* name) {
     return value ? std::string(value) : std::string();
 }
 
-bool constant_time_equal(const std::string& left, const std::string& right) {
-    if (left.size() != right.size()) {
+bool constant_time_equal(const std::string& a, const std::string& b) {
+    if (a.size() != b.size()) {
         return false;
     }
-
-    unsigned char difference = 0;
-    for (std::size_t i = 0; i < left.size(); ++i) {
-        difference |= static_cast<unsigned char>(left[i] ^ right[i]);
+    unsigned char diff = 0;
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        diff |= static_cast<unsigned char>(a[i] ^ b[i]);
     }
-    return difference == 0;
+    return diff == 0;
 }
-
-}  // namespace
+}
 
 class NetworkScannerServiceImpl final : public NetworkScanner::Service {
 public:
-    explicit NetworkScannerServiceImpl(std::string authorization_token)
-        : authorization_token_(std::move(authorization_token)) {}
+    explicit NetworkScannerServiceImpl(std::string token)
+        : authorization_token_(std::move(token)) {}
 
     Status StartScan(
         ServerContext* context,
@@ -69,30 +65,26 @@ public:
         if (!authorized(request->authorization_id())) {
             return Status(StatusCode::UNAUTHENTICATED, "Invalid authorization");
         }
-
         if (request->scan_id().empty() || request->target_ip().empty()) {
             return Status(StatusCode::INVALID_ARGUMENT, "scan_id and target_ip are required");
         }
-
         if (request->ports_size() == 0 ||
             static_cast<std::size_t>(request->ports_size()) > MAX_PORTS_PER_SCAN) {
             return Status(StatusCode::INVALID_ARGUMENT, "Invalid number of ports");
         }
-
         if (request->timeout_ms() < MIN_TIMEOUT_MS ||
             request->timeout_ms() > MAX_TIMEOUT_MS) {
-            return Status(StatusCode::INVALID_ARGUMENT, "timeout_ms is outside allowed limits");
+            return Status(StatusCode::INVALID_ARGUMENT, "Invalid timeout_ms");
         }
 
         try {
             boost::asio::ip::make_address(request->target_ip());
         } catch (const std::exception&) {
-            return Status(StatusCode::INVALID_ARGUMENT, "target_ip must be a valid IP address");
+            return Status(StatusCode::INVALID_ARGUMENT, "Invalid target IP address");
         }
 
         std::vector<uint32_t> ports;
         ports.reserve(static_cast<std::size_t>(request->ports_size()));
-
         for (const uint32_t port : request->ports()) {
             if (port == 0 || port > 65535) {
                 return Status(StatusCode::INVALID_ARGUMENT, "Ports must be between 1 and 65535");
@@ -124,16 +116,12 @@ public:
         };
 
         auto scanner = std::make_shared<AsyncScanner>(
-            io_context,
-            request->target_ip(),
-            ports,
-            request->timeout_ms(),
-            callback
+            io_context, request->target_ip(), ports, request->timeout_ms(), callback
         );
 
         {
             std::lock_guard<std::mutex> lock(scans_mutex_);
-            if (active_scans_.find(request->scan_id()) != active_scans_.end()) {
+            if (active_scans_.count(request->scan_id()) != 0) {
                 return Status(StatusCode::ALREADY_EXISTS, "scan_id is already active");
             }
             active_scans_[request->scan_id()] = scanner;
@@ -146,32 +134,26 @@ public:
 
         std::vector<std::thread> workers;
         workers.reserve(worker_count);
-
         scanner->start();
 
         for (std::size_t i = 0; i < worker_count; ++i) {
-            workers.emplace_back([&io_context]() {
-                io_context.run();
-            });
+            workers.emplace_back([&io_context]() { io_context.run(); });
         }
 
-        while (
-            !scanner->is_finished() &&
-            !context->IsCancelled() &&
-            !stream_failed.load()
-        ) {
+        while (!scanner->is_finished() &&
+               !context->IsCancelled() &&
+               !stream_failed.load()) {
             std::this_thread::sleep_for(std::chrono::milliseconds(25));
         }
 
-        const bool was_cancelled = context->IsCancelled();
-        const bool was_stream_failed = stream_failed.load();
+        const bool cancelled = context->IsCancelled();
+        const bool broken_stream = stream_failed.load();
         scanner->stop();
         work_guard.reset();
 
-        if (was_cancelled || was_stream_failed) {
+        if (cancelled || broken_stream) {
             io_context.stop();
         }
-
         for (auto& worker : workers) {
             if (worker.joinable()) {
                 worker.join();
@@ -183,21 +165,20 @@ public:
             active_scans_.erase(request->scan_id());
         }
 
-        if (!was_cancelled && !was_stream_failed) {
-            ScanEvent final_event;
-            final_event.set_scan_id(request->scan_id());
-            final_event.set_target_ip(request->target_ip());
-            final_event.set_engine_version(ENGINE_VERSION);
-            final_event.set_completed_ports(completed_ports.load());
-            final_event.set_total_ports(static_cast<uint32_t>(ports.size()));
-            final_event.set_event_type("COMPLETED");
-            final_event.set_status("COMPLETED");
-
+        if (!cancelled && !broken_stream) {
+            ScanEvent event;
+            event.set_scan_id(request->scan_id());
+            event.set_target_ip(request->target_ip());
+            event.set_engine_version(ENGINE_VERSION);
+            event.set_completed_ports(completed_ports.load());
+            event.set_total_ports(static_cast<uint32_t>(ports.size()));
+            event.set_event_type("COMPLETED");
+            event.set_status("COMPLETED");
             std::lock_guard<std::mutex> lock(writer_mutex);
-            writer->Write(final_event);
+            writer->Write(event);
         }
 
-        return was_cancelled
+        return cancelled
             ? Status(StatusCode::CANCELLED, "Scan cancelled")
             : Status::OK;
     }
@@ -212,7 +193,6 @@ public:
         }
 
         std::shared_ptr<AsyncScanner> scanner;
-
         {
             std::lock_guard<std::mutex> lock(scans_mutex_);
             const auto it = active_scans_.find(request->scan_id());
@@ -231,9 +211,9 @@ public:
     }
 
 private:
-    bool authorized(const std::string& supplied_token) const {
+    bool authorized(const std::string& supplied) const {
         return !authorization_token_.empty() &&
-               constant_time_equal(supplied_token, authorization_token_);
+               constant_time_equal(supplied, authorization_token_);
     }
 
     std::string authorization_token_;
@@ -242,34 +222,25 @@ private:
 };
 
 bool RunServer() {
-    const std::string authorization_token = get_env("KRAVIGIL_ENGINE_AUTH_TOKEN");
+    const std::string token = get_env("KRAVIGIL_ENGINE_AUTH_TOKEN");
     const std::string certificate = get_env("KRAVIGIL_TLS_CERT");
     const std::string private_key = get_env("KRAVIGIL_TLS_KEY");
 
-    if (authorization_token.empty() || certificate.empty() || private_key.empty()) {
-        std::cerr
-            << "KRAVIGIL_ENGINE_AUTH_TOKEN, KRAVIGIL_TLS_CERT and "
-            << "KRAVIGIL_TLS_KEY must be configured.\n";
+    if (token.empty() || certificate.empty() || private_key.empty()) {
+        std::cerr << "KRAVIGIL_ENGINE_AUTH_TOKEN, KRAVIGIL_TLS_CERT and "
+                     "KRAVIGIL_TLS_KEY must be configured.\n";
         return false;
     }
 
-    grpc::SslServerCredentialsOptions::PemKeyCertPair key_cert_pair{
-        private_key,
-        certificate
-    };
     grpc::SslServerCredentialsOptions ssl_options;
-    ssl_options.pem_key_cert_pairs.push_back(key_cert_pair);
+    ssl_options.pem_key_cert_pairs.push_back({private_key, certificate});
 
-    NetworkScannerServiceImpl service(authorization_token);
+    NetworkScannerServiceImpl service(token);
     ServerBuilder builder;
-
-    builder.AddListeningPort(
-        "0.0.0.0:50051",
-        grpc::SslServerCredentials(ssl_options)
-    );
+    builder.AddListeningPort("0.0.0.0:50051", grpc::SslServerCredentials(ssl_options));
     builder.RegisterService(&service);
-    builder.SetMaxReceiveMessageSize(1024 * 1024 * 4);
-    builder.SetMaxSendMessageSize(1024 * 1024 * 4);
+    builder.SetMaxReceiveMessageSize(4 * 1024 * 1024);
+    builder.SetMaxSendMessageSize(4 * 1024 * 1024);
 
     std::unique_ptr<Server> server(builder.BuildAndStart());
     if (!server) {
