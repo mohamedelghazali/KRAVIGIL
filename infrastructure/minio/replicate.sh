@@ -1,43 +1,57 @@
-
 #!/bin/bash
 
-set -euo pipefail
+set -e
 
-# MinIO replication configuration
-SOURCE_ALIAS="kravigil-src"
-TARGET_ALIAS="kravigil-tgt"
+REQUIRED_VARS=(
+    "MINIO_SOURCE_URL"
+    "MINIO_TARGET_URL"
+    "MINIO_SOURCE_USER"
+    "MINIO_SOURCE_PASSWORD"
+    "MINIO_TARGET_USER"
+    "MINIO_TARGET_PASSWORD"
+    "MINIO_BUCKET"
+)
 
-SOURCE_URL="${MINIO_SOURCE_URL:-http://localhost:9000}"
-TARGET_URL="${MINIO_TARGET_URL:-http://target-minio:9000}"
+echo "[*] Validating required environment variables..."
+for VAR in "${REQUIRED_VARS[@]}"; do
+    if [ -z "${!VAR}" ]; then
+        echo "[-] Missing required environment variable: ${VAR}"
+        exit 1
+    fi
+done
 
-SOURCE_ACCESS_KEY="${MINIO_SOURCE_USER:?MINIO_SOURCE_USER is required}"
-SOURCE_SECRET_KEY="${MINIO_SOURCE_PASSWORD:?MINIO_SOURCE_PASSWORD is required}"
+echo "[*] Setting up MinIO Cross-Cluster Replication..."
+echo "[*] Source: ${MINIO_SOURCE_URL}"
+echo "[*] Target: ${MINIO_TARGET_URL}"
+echo "[*] Bucket: ${MINIO_BUCKET}"
 
-TARGET_ACCESS_KEY="${MINIO_TARGET_USER:?MINIO_TARGET_USER is required}"
-TARGET_SECRET_KEY="${MINIO_TARGET_PASSWORD:?MINIO_TARGET_PASSWORD is required}"
+docker run --rm \
+    --network infrastructure_data_plane \
+    -e MC_HOST_source="http://${MINIO_SOURCE_USER}:${MINIO_SOURCE_PASSWORD}@${MINIO_SOURCE_URL}" \
+    -e MC_HOST_target="http://${MINIO_TARGET_USER}:${MINIO_TARGET_PASSWORD}@${MINIO_TARGET_URL}" \
+    -e BUCKET="${MINIO_BUCKET}" \
+    minio/mc /bin/sh -c '
+        set -e
+        echo "[+] Configuring aliases..."
+        mc alias set source "$MC_HOST_source"
+        mc alias set target "$MC_HOST_target"
 
-BUCKET_NAME="${MINIO_BUCKET:-kravigil-evidence}"
+        echo "[+] Enabling versioning on source bucket..."
+        mc version enable "source/$BUCKET" || echo "[!] Versioning already enabled or failed"
 
-echo "[*] Configuring MinIO aliases..."
+        echo "[+] Enabling versioning on target bucket..."
+        mc version enable "target/$BUCKET" || echo "[!] Versioning already enabled or failed"
 
-mc alias set "$SOURCE_ALIAS" "$SOURCE_URL" \
-    "$SOURCE_ACCESS_KEY" "$SOURCE_SECRET_KEY"
+        echo "[+] Creating replication rule..."
+        mc replicate add "source/$BUCKET" \
+            --remote-bucket "target/$BUCKET" \
+            --priority 1 \
+            --replicate "delete,delete-marker,existing-objects" \
+            || echo "[!] Replication rule may already exist"
 
-mc alias set "$TARGET_ALIAS" "$TARGET_URL" \
-    "$TARGET_ACCESS_KEY" "$TARGET_SECRET_KEY"
+        echo "[+] Replication status:"
+        mc replicate ls "source/$BUCKET"
+    '
 
-echo "[*] Enabling bucket versioning..."
-
-mc version enable "$SOURCE_ALIAS/$BUCKET_NAME"
-mc version enable "$TARGET_ALIAS/$BUCKET_NAME"
-
-echo "[*] Configuring bucket replication..."
-
-mc replicate add "$SOURCE_ALIAS/$BUCKET_NAME" \
-    --remote-bucket "$TARGET_ALIAS/$BUCKET_NAME" \
-    --priority 1 \
-    --replicate "delete,delete-marker,existing-objects"
-
-echo "[+] MinIO replication configuration completed."
-echo "[*] Check replication status using:"
-echo "mc replicate ls $SOURCE_ALIAS/$BUCKET_NAME"
+echo "[+] MinIO Replication configured successfully."
+echo "[*] Verify replication: mc admin replicate status source/${MINIO_BUCKET}"
