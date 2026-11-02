@@ -1,7 +1,10 @@
-from abc import ABC, abstractmethod
-from typing import Dict, Any
+from typing import Any, Dict
 
-class BaseAIProvider(ABC):
-    @abstractmethod
-    async def analyze_finding(self, finding_data: Dict[str, Any], evidence_text: str) -> Dict[str, Any]:
-        pass
+
+class BaseAIProvider:
+    async def analyze_finding(
+        self,
+        finding_data: Dict[str, Any],
+        evidence_text: str,
+    ) -> Dict[str, Any]:
+        raise NotImplementedError("Provider must implement analyze_finding")
