@@ -23,19 +23,16 @@ class NetworkEngineClient:
 
         if not token:
             raise ValueError("KRAVIGIL_ENGINE_AUTH_TOKEN is required")
-
         if not cert_path:
             raise ValueError("KRAVIGIL_TLS_CA is required")
 
-        certificate_file = Path(cert_path)
-        if not certificate_file.is_file():
-            raise FileNotFoundError(f"TLS CA certificate not found: {certificate_file}")
+        cert_file = Path(cert_path)
+        if not cert_file.is_file():
+            raise FileNotFoundError(f"TLS CA certificate not found: {cert_file}")
 
-        root_certificates = certificate_file.read_bytes()
         credentials = grpc.ssl_channel_credentials(
-            root_certificates=root_certificates
+            root_certificates=cert_file.read_bytes()
         )
-
         self.authorization_id = token
         self.channel = grpc.secure_channel(
             f"{host}:{port}",
@@ -55,10 +52,8 @@ class NetworkEngineClient:
         timeout_ms: int = 1500,
         rpc_timeout: float = 3600,
     ) -> Iterator:
-        if not scan_id:
-            raise ValueError("scan_id is required")
-        if not target_ip:
-            raise ValueError("target_ip is required")
+        if not scan_id or not target_ip:
+            raise ValueError("scan_id and target_ip are required")
         if not ports:
             raise ValueError("At least one port is required")
         if any(not isinstance(port, int) or port < 1 or port > 65535 for port in ports):
@@ -80,14 +75,8 @@ class NetworkEngineClient:
                 if event.event_type in {"COMPLETED", "CANCELLED", "ERROR"}:
                     break
         except grpc.RpcError as exc:
-            logger.error(
-                "Network Engine stream failed: %s - %s",
-                exc.code(),
-                exc.details(),
-            )
-            raise RuntimeError(
-                f"Network Engine failure: {exc.details()}"
-            ) from exc
+            logger.error("Network Engine stream failed: %s - %s", exc.code(), exc.details())
+            raise RuntimeError(f"Network Engine failure: {exc.details()}") from exc
 
     def cancel_scan(self, scan_id: str) -> bool:
         if not scan_id:
@@ -97,16 +86,11 @@ class NetworkEngineClient:
             scan_id=scan_id,
             authorization_id=self.authorization_id,
         )
-
         try:
             response = self.stub.CancelScan(request, timeout=10)
             return response.accepted
         except grpc.RpcError as exc:
-            logger.error(
-                "Cancel scan failed: %s - %s",
-                exc.code(),
-                exc.details(),
-            )
+            logger.error("Cancel scan failed: %s - %s", exc.code(), exc.details())
             return False
 
     def close(self) -> None:
