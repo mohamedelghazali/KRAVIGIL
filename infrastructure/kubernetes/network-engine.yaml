@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: network-engine
+  namespace: kravigil
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: network-engine
+  template:
+    metadata:
+      labels:
+        app: network-engine
+    spec:
+      containers:
+      - name: network-engine
+        image: ghcr.io/your-org/kravigil-network-engine:latest
+        ports:
+        - containerPort: 50051
+        securityContext:
+          capabilities:
+            add: ["NET_RAW"]
+            drop: ["ALL"]
+          readOnlyRootFilesystem: true
+        resources:
+          limits:
+            cpu: "2"
+            memory: "1Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: network-engine
+  namespace: kravigil
+spec:
+  selector:
+    app: network-engine
+  ports:
+  - port: 50051
+    targetPort: 50051
