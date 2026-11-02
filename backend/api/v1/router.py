@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from backend.api.v1.endpoints import ai_analysis, assets, auth, evidence, findings, scans, targets
+from backend.api.v1.endpoints import ai_analysis, assets, auth, evidence, findings, reports, scans, targets
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
@@ -9,3 +9,4 @@ api_router.include_router(scans.router, prefix="/scans", tags=["Scans"])
 api_router.include_router(findings.router, prefix="/findings", tags=["Findings"])
 api_router.include_router(ai_analysis.router, prefix="/ai", tags=["AI Analysis"])
 api_router.include_router(evidence.router, prefix="/evidence", tags=["Evidence"])
+api_router.include_router(reports.router, prefix="/reports", tags=["Reports"])
