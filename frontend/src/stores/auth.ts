@@ -1,21 +1,22 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import axios from 'axios'
+import apiClient from '../services/api'
 
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref<string | null>(localStorage.getItem('token'))
+  const token = ref(localStorage.getItem('token') || null)
   const isAuthenticated = ref(!!token.value)
-
-  if (token.value) axios.defaults.headers.common.Authorization = `Bearer ${token.value}`
 
   async function login(email: string, password: string) {
     const formData = new URLSearchParams()
     formData.append('username', email)
     formData.append('password', password)
-    const response = await axios.post('/api/v1/auth/login', formData)
+
+    const response = await apiClient.post('/auth/login', formData, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+    })
+
     token.value = response.data.access_token
     localStorage.setItem('token', response.data.access_token)
-    axios.defaults.headers.common.Authorization = `Bearer ${response.data.access_token}`
     isAuthenticated.value = true
   }
 
@@ -23,7 +24,6 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = null
     localStorage.removeItem('token')
     isAuthenticated.value = false
-    delete axios.defaults.headers.common.Authorization
   }
 
   return { token, isAuthenticated, login, logout }
