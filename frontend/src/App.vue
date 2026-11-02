@@ -7,6 +7,7 @@
         <router-link to="/targets">Targets</router-link>
         <router-link to="/assets">Assets</router-link>
         <router-link to="/scans">Scans</router-link>
+        <router-link to="/schedules">Schedules</router-link>
         <router-link to="/findings">Findings</router-link>
         <router-link to="/risk">Risk</router-link>
         <router-link to="/reports">Reports</router-link>
