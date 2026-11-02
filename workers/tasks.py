@@ -1,6 +1,8 @@
 import logging
 import uuid
+from datetime import datetime
 
+from celery import shared_task
 from sqlalchemy import text
 
 from workers.celery_app import celery_app
@@ -8,20 +10,15 @@ from engines.network_cpp.grpc_client import NetworkEngineClient
 from backend.database.session import SessionLocal
 from backend.services.normalization.normalizer import Normalizer
 from backend.services.correlation.correlation_engine import CorrelationEngine
+from backend.services.vulnerability_intelligence.nvd_client import VulnerabilityIntelligence
 from backend.database.models.scan import Scan
 from backend.database.models.observation import Observation
+
 
 logger = logging.getLogger(__name__)
 
 
-def _set_tenant_context(db, tenant_id: str) -> None:
-    db.execute(
-        text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
-        {"tenant_id": str(tenant_id)},
-    )
-
-
-@celery_app.task(bind=True, name="tasks.run_network_scan", max_retries=3)
+@celery_app.task(bind=True, name="tasks.run_network_scan", max_retries=3, acks_late=True)
 def run_network_scan(
     self,
     tenant_id: str,
@@ -34,112 +31,110 @@ def run_network_scan(
     client = None
 
     try:
-        _set_tenant_context(db, tenant_id)
+        db.execute(
+            text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
+            {"tenant_id": str(tenant_id)},
+        )
 
         scan = (
             db.query(Scan)
             .filter(
-                Scan.id == uuid.UUID(scan_id),
-                Scan.tenant_id == uuid.UUID(tenant_id),
-                Scan.asset_id == uuid.UUID(asset_id),
+                Scan.id == uuid.UUID(str(scan_id)),
+                Scan.tenant_id == uuid.UUID(str(tenant_id)),
             )
             .first()
         )
         if scan is None:
-            raise ValueError(f"Scan {scan_id} was not found for this tenant and asset")
+            raise ValueError(f"Scan {scan_id} not found for tenant {tenant_id}")
 
         scan.status = "RUNNING"
-        scan.started_at = db.execute(text("SELECT NOW()")).scalar()
-        scan.finished_at = None
+        scan.started_at = datetime.utcnow()
+        scan.error_message = None
         db.commit()
 
         client = NetworkEngineClient()
-        observations = []
+        pending_observations = []
         processed_count = 0
 
         for event in client.start_scan(scan_id, target_ip, ports):
-            if event.event_type == "COMPLETED":
-                continue
+            if self.is_aborted():
+                raise RuntimeError("Task aborted by worker shutdown or cancellation")
 
             observation = Normalizer.from_network_event(
-                uuid.UUID(tenant_id),
-                uuid.UUID(scan_id),
-                uuid.UUID(asset_id),
+                uuid.UUID(str(tenant_id)),
+                uuid.UUID(str(scan_id)),
+                uuid.UUID(str(asset_id)),
                 event,
             )
-            if observation is None:
-                continue
+            if observation is not None:
+                pending_observations.append(observation)
+                processed_count += 1
 
-            observations.append(observation)
-            processed_count += 1
-
-            if len(observations) >= 500:
-                _set_tenant_context(db, tenant_id)
-                db.bulk_save_objects(observations)
+            if len(pending_observations) >= 500:
+                db.bulk_save_objects(pending_observations)
                 db.commit()
-                observations.clear()
+                pending_observations.clear()
                 self.update_state(
                     state="PROGRESS",
-                    meta={"processed_ports": processed_count},
+                    meta={"processed_events": processed_count},
                 )
 
-        if observations:
-            _set_tenant_context(db, tenant_id)
-            db.bulk_save_objects(observations)
+        if pending_observations:
+            db.bulk_save_objects(pending_observations)
             db.commit()
 
-        _set_tenant_context(db, tenant_id)
         scan = (
             db.query(Scan)
             .filter(
-                Scan.id == uuid.UUID(scan_id),
-                Scan.tenant_id == uuid.UUID(tenant_id),
+                Scan.id == uuid.UUID(str(scan_id)),
+                Scan.tenant_id == uuid.UUID(str(tenant_id)),
             )
             .first()
         )
-        if scan is None:
-            raise ValueError(f"Scan {scan_id} disappeared before completion")
-
-        scan.status = "COMPLETED"
-        scan.finished_at = db.execute(text("SELECT NOW()")).scalar()
-        db.commit()
+        if scan is not None:
+            scan.status = "COMPLETED"
+            scan.finished_at = datetime.utcnow()
+            db.commit()
 
         correlate_findings.delay(tenant_id, scan_id, asset_id)
 
         return {
             "status": "completed",
             "scan_id": scan_id,
-            "observations_processed": processed_count,
+            "events_processed": processed_count,
         }
 
     except Exception as exc:
         db.rollback()
-        logger.exception("Network scan %s failed: %s", scan_id, exc)
+        logger.error("Scan %s failed: %s", scan_id, exc, exc_info=True)
 
         try:
-            _set_tenant_context(db, tenant_id)
+            db.execute(
+                text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
+                {"tenant_id": str(tenant_id)},
+            )
             scan = (
                 db.query(Scan)
                 .filter(
-                    Scan.id == uuid.UUID(scan_id),
-                    Scan.tenant_id == uuid.UUID(tenant_id),
+                    Scan.id == uuid.UUID(str(scan_id)),
+                    Scan.tenant_id == uuid.UUID(str(tenant_id)),
                 )
                 .first()
             )
             if scan is not None:
-                if self.request.retries < self.max_retries:
-                    scan.status = "RETRYING"
-                else:
-                    scan.status = "FAILED"
-                    scan.finished_at = db.execute(text("SELECT NOW()")).scalar()
+                scan.status = "FAILED"
+                scan.error_message = str(exc)
+                scan.finished_at = datetime.utcnow()
                 db.commit()
-        except Exception:
+        except Exception as status_exc:
             db.rollback()
-            logger.exception("Failed to update status for scan %s", scan_id)
+            logger.error(
+                "Failed to update scan status to FAILED: %s",
+                status_exc,
+                exc_info=True,
+            )
 
-        if isinstance(exc, ValueError):
-            raise
-        raise self.retry(exc=exc, countdown=60)
+        raise self.retry(exc=exc, countdown=60, max_retries=3)
 
     finally:
         if client is not None:
@@ -147,19 +142,23 @@ def run_network_scan(
         db.close()
 
 
-@celery_app.task(bind=True, name="tasks.correlate_findings", max_retries=3)
+@celery_app.task(bind=True, name="tasks.correlate_findings", max_retries=3, acks_late=True)
 def correlate_findings(self, tenant_id: str, scan_id: str, asset_id: str):
     db = SessionLocal()
+    intel = VulnerabilityIntelligence()
 
     try:
-        _set_tenant_context(db, tenant_id)
+        db.execute(
+            text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
+            {"tenant_id": str(tenant_id)},
+        )
 
         observations = (
             db.query(Observation)
             .filter(
-                Observation.tenant_id == uuid.UUID(tenant_id),
-                Observation.scan_id == uuid.UUID(scan_id),
-                Observation.asset_id == uuid.UUID(asset_id),
+                Observation.scan_id == uuid.UUID(str(scan_id)),
+                Observation.asset_id == uuid.UUID(str(asset_id)),
+                Observation.tenant_id == uuid.UUID(str(tenant_id)),
             )
             .all()
         )
@@ -171,20 +170,22 @@ def correlate_findings(self, tenant_id: str, scan_id: str, asset_id: str):
             if observation.event_type != "PORT_OPEN":
                 continue
 
-            port = observation.raw_data.get("port")
-            service = observation.raw_data.get("status")
+            raw_data = observation.raw_data or {}
+            port = raw_data.get("port")
+            service = raw_data.get("service") or raw_data.get("status") or ""
+
             if port is None:
                 continue
 
-            vulnerability_key = f"open_port_{int(port)}"
             engine.process_observation(
-                observation,
-                vulnerability_key,
-                service_id=service,
+                obs=observation,
+                vulnerability_key=f"open_port_{port}",
+                service_id=str(service),
+                severity="low",
+                confidence="high",
             )
             processed += 1
 
-        db.commit()
         return {
             "status": "correlated",
             "observations_processed": processed,
@@ -192,8 +193,14 @@ def correlate_findings(self, tenant_id: str, scan_id: str, asset_id: str):
 
     except Exception as exc:
         db.rollback()
-        logger.exception("Correlation failed for scan %s: %s", scan_id, exc)
-        raise self.retry(exc=exc, countdown=30)
+        logger.error(
+            "Correlation failed for scan %s: %s",
+            scan_id,
+            exc,
+            exc_info=True,
+        )
+        raise self.retry(exc=exc, countdown=30, max_retries=3)
 
     finally:
+        intel.close()
         db.close()
