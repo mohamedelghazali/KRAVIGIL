@@ -1,4 +1,4 @@
-.PHONY: setup build up down logs test lint format clean migrate seed deploy-prod replicate-minio
+.PHONY: setup build up down logs test lint format clean migrate seed deploy-prod replicate-minio verify-replication
 
 setup:
 	python3 -m venv .venv
@@ -41,4 +41,7 @@ deploy-prod:
 	./scripts/deploy_prod.sh
 
 replicate-minio:
-	./infrastructure/minio/replicate.sh
+	set -a && . ./.env && set +a && ./infrastructure/minio/replicate.sh
+
+verify-replication:
+	set -a && . ./.env && set +a && ./infrastructure/minio/verify_replication.sh
