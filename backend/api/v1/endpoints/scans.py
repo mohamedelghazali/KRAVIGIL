@@ -1,3 +1,4 @@
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
@@ -9,7 +10,7 @@ from backend.database.session import get_tenant_db
 from backend.core.security import get_current_user, require_role
 from backend.core.exceptions import KravigilException, ScopeViolationException
 from backend.security.scope_guard import ScopeGuard
-from workers.tasks import run_network_scan, run_web_scan, run_sast_scan
+from workers.tasks import run_network_scan, run_web_scan, run_sast_scan, run_cloud_scan
 from pydantic import BaseModel, Field, validator
 import uuid
 
@@ -32,6 +33,10 @@ class WebScanCreate(BaseModel):
 class SASTScanCreate(BaseModel):
     asset_id: uuid.UUID
     code_path: str
+
+class CloudScanCreate(BaseModel):
+    asset_id: uuid.UUID
+    provider: str = "aws"
 
 class ScanResponse(BaseModel):
     id: uuid.UUID
@@ -104,7 +109,7 @@ def start_web_scan(
         scan, asset = _init_scan(db, current_user.tenant_id, scan_in.target_id, "WEB")
         target = db.query(Target).filter(Target.id == scan_in.target_id).first()
         target_url = target.domain or f"http://{target.ip_address}"
-
+        
         run_web_scan.delay(
             tenant_id=str(current_user.tenant_id),
             scan_id=str(scan.id),
@@ -151,6 +156,40 @@ def start_sast_scan(
     except Exception as e:
         db.rollback()
         raise KravigilException(message=f"Failed to initiate SAST scan: {str(e)}", status_code=500, error_code="SCAN_INIT_ERROR")
+
+@router.post("/cloud", response_model=ScanResponse, status_code=status.HTTP_202_ACCEPTED)
+def start_cloud_scan(
+    scan_in: CloudScanCreate,
+    current_user: User = Depends(require_role(["admin", "analyst"])),
+    db: Session = Depends(get_tenant_db)
+):
+    try:
+        asset = db.query(Asset).filter(Asset.id == scan_in.asset_id).first()
+        if not asset: raise HTTPException(status_code=404, detail="Asset not found")
+
+        scan = Scan(
+            tenant_id=current_user.tenant_id,
+            target_id=asset.target_id,
+            asset_id=asset.id,
+            status="PENDING",
+            scan_type="CLOUD"
+        )
+        db.add(scan)
+        db.commit()
+        db.refresh(scan)
+
+        run_cloud_scan.delay(
+            tenant_id=str(current_user.tenant_id),
+            scan_id=str(scan.id),
+            asset_id=str(asset.id),
+            provider=scan_in.provider
+        )
+        return scan
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise KravigilException(message=f"Failed to initiate Cloud scan: {str(e)}", status_code=500, error_code="SCAN_INIT_ERROR")
 
 @router.get("/", response_model=List[ScanResponse])
 def list_scans(
