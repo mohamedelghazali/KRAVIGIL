@@ -1,3 +1,15 @@
-# KRAVIGIL — Documentation Scaffold
+import { defineStore } from "pinia";
+import { ref } from "vue";
+import type { Finding } from "../types/models";
 
-Status: planned / not yet implemented. Document design decisions, threat assumptions, security boundaries, operational requirements, and measurable acceptance tests here.
+export const useFindingsStore = defineStore("findings", () => {
+  const items = ref<Finding[]>([]);
+  const loading = ref(false);
+  const error = ref<string | null>(null);
+
+  function replaceAll(findings: Finding[]): void {
+    items.value = findings;
+  }
+
+  return { items, loading, error, replaceAll };
+});
