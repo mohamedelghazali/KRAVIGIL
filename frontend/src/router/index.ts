@@ -8,6 +8,8 @@ import Targets from '../views/Targets.vue'
 import Assets from '../views/Assets.vue'
 import Risk from '../views/Risk.vue'
 import Settings from '../views/Settings.vue'
+import UserManagement from '../views/UserManagement.vue'
+import AuditLogs from '../views/AuditLogs.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -20,6 +22,8 @@ const router = createRouter({
     { path: '/findings', component: Findings, meta: { requiresAuth: true } },
     { path: '/risk', component: Risk, meta: { requiresAuth: true } },
     { path: '/reports', component: Reports, meta: { requiresAuth: true } },
+    { path: '/users', component: UserManagement, meta: { requiresAuth: true, requiresAdmin: true } },
+    { path: '/audit-logs', component: AuditLogs, meta: { requiresAuth: true, requiresAdmin: true } },
     { path: '/settings', component: Settings, meta: { requiresAuth: true } }
   ]
 })
