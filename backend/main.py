@@ -1,10 +1,11 @@
 import logging
-from datetime import datetime
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from backend.core.config import get_settings
 from backend.core.logging import setup_logging
 from backend.core.exceptions import KravigilException, kravigil_exception_handler, generic_exception_handler
+from backend.core.rate_limiter import RateLimitMiddleware
+from backend.core.telemetry import setup_telemetry
 from backend.api.v1.router import api_router
 from backend.api.websockets.scans import scan_websocket_endpoint
 from backend.database.session import engine
@@ -13,25 +14,18 @@ from backend.database.models.base import Base
 setup_logging()
 logger = logging.getLogger(__name__)
 settings = get_settings()
-
-app = FastAPI(
-    title=settings.APP_NAME,
-    version=settings.APP_VERSION,
-    docs_url="/docs" if settings.DEBUG else None,
-    redoc_url=None
-)
-
+app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION,
+              docs_url="/docs" if settings.DEBUG else None, redoc_url=None)
 app.add_exception_handler(KravigilException, kravigil_exception_handler)
 app.add_exception_handler(Exception, generic_exception_handler)
-
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    CORSMiddleware, allow_origins=settings.ALLOWED_ORIGINS,
+    allow_credentials=True, allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
 )
-
+app.add_middleware(RateLimitMiddleware, redis_url=settings.REDIS_URL,
+                   default_limit=1000, window_seconds=60)
+setup_telemetry(app)
 app.include_router(api_router, prefix="/api/v1")
 
 @app.websocket("/ws/scans")
@@ -43,8 +37,8 @@ async def startup_event():
     logger.info("KRAVIGIL Core starting up")
     try:
         Base.metadata.create_all(bind=engine)
-    except Exception as e:
-        logger.critical(f"Database init failed: {e}")
+    except Exception as exc:
+        logger.critical("Database init failed: %s", exc)
         raise
 
 @app.on_event("shutdown")
