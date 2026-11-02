@@ -1,7 +1,7 @@
 <template>
   <div>
     <h1>Scan Management</h1>
-
+    
     <div class="grid">
       <div class="card">
         <h3>Start New Scan</h3>
@@ -10,14 +10,23 @@
             <option value="" disabled>Select Target</option>
             <option v-for="t in targets" :key="t.id" :value="t.id">{{ t.name }} ({{ t.ip_address || t.domain }})</option>
           </select>
-
+          
           <select v-model="scanData.type" required>
             <option value="NETWORK">Network Scan (C++)</option>
             <option value="WEB">Web Scan (Nuclei)</option>
+            <option value="CLOUD">Cloud Scan (Prowler)</option>
           </select>
-
+          
           <div v-if="scanData.type === 'NETWORK'">
             <input v-model="scanData.ports" placeholder="Ports (e.g., 22,80,443)" required />
+          </div>
+
+          <div v-if="scanData.type === 'CLOUD'">
+            <select v-model="scanData.provider">
+              <option value="aws">Amazon Web Services (AWS)</option>
+              <option value="azure">Microsoft Azure</option>
+              <option value="gcp">Google Cloud Platform</option>
+            </select>
           </div>
 
           <button type="submit" class="btn-primary" :disabled="loading">
@@ -25,7 +34,7 @@
           </button>
         </form>
       </div>
-
+      
       <div class="card">
         <h3>Recent Scans</h3>
         <ul class="scan-list">
@@ -45,49 +54,53 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
-import axios from 'axios'
+import apiClient from '../services/api'
 import { useScanWebSocket } from '../services/ws'
+import { useNotificationStore } from '../stores/notifications'
 
 const targets = ref<any[]>([])
 const scans = ref<any[]>([])
 const loading = ref(false)
 const { lastMessage } = useScanWebSocket()
+const notifications = useNotificationStore()
 
 const scanData = ref({
   target_id: '',
   type: 'NETWORK',
-  ports: '22,80,443'
+  ports: '22,80,443',
+  provider: 'aws'
 })
 
 async function fetchTargets() {
-  const res = await axios.get('/api/v1/targets/')
+  const res = await apiClient.get('/targets/')
   targets.value = res.data
 }
 
 async function fetchScans() {
-  try {
-    const res = await axios.get('/api/v1/scans/')
-    scans.value = res.data
-  } catch (e) {
-    scans.value = []
-  }
+  const res = await apiClient.get('/scans/')
+  scans.value = res.data
 }
 
 async function startScan() {
   loading.value = true
   try {
-    const payload = {
-      target_id: scanData.value.target_id,
-      ports: scanData.value.ports.split(',').map(p => parseInt(p.trim()))
+    let endpoint = '/scans/network'
+    let payload: any = { target_id: scanData.value.target_id }
+
+    if (scanData.value.type === 'NETWORK') {
+      payload.ports = scanData.value.ports.split(',').map(p => parseInt(p.trim()))
+    } else if (scanData.value.type === 'WEB') {
+      endpoint = '/scans/web'
+    } else if (scanData.value.type === 'CLOUD') {
+      endpoint = '/scans/cloud'
+      payload.provider = scanData.value.provider
     }
-
-    const endpoint = scanData.value.type === 'NETWORK' ? '/api/v1/scans/network' : '/api/v1/scans/web'
-    await axios.post(endpoint, payload)
-
-    alert('Scan launched successfully!')
+    
+    await apiClient.post(endpoint, payload)
+    notifications.add('success', 'Scan launched successfully!')
     fetchScans()
   } catch (e: any) {
-    alert(e.response?.data?.detail || 'Failed to launch scan')
+    notifications.add('error', e.response?.data?.detail || 'Failed to launch scan')
   } finally {
     loading.value = false
   }
