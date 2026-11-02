@@ -5,21 +5,26 @@
       <div class="nav-links">
         <router-link to="/">Dashboard</router-link>
         <router-link to="/targets">Targets</router-link>
+        <router-link to="/assets">Assets</router-link>
         <router-link to="/scans">Scans</router-link>
         <router-link to="/findings">Findings</router-link>
+        <router-link to="/risk">Risk</router-link>
         <router-link to="/reports">Reports</router-link>
+        <router-link to="/settings">Settings</router-link>
       </div>
       <button @click="handleLogout" class="logout-btn">Logout</button>
     </nav>
     <main :class="{ 'full-width': !authStore.isAuthenticated }">
       <router-view />
     </main>
+    <Toast />
   </div>
 </template>
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { useAuthStore } from './stores/auth'
+import Toast from './components/Toast.vue'
 
 const authStore = useAuthStore()
 const router = useRouter()
