@@ -1,47 +1,72 @@
-import hashlib
+import logging
+import uuid
 from datetime import datetime
+
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.orm import Session
+
 from backend.database.models.finding import Finding
 from backend.database.models.observation import Observation
-from sqlalchemy.orm import Session
+
+
+logger = logging.getLogger(__name__)
+
 
 class CorrelationEngine:
     def __init__(self, db: Session):
         self.db = db
 
-    def _generate_fingerprint(self, tenant_id: str, asset_id: str, service_id: str, vulnerability_key: str) -> str:
-        raw = f"{tenant_id}|{asset_id}|{service_id}|{vulnerability_key}"
-        return hashlib.sha256(raw.encode()).hexdigest()
+    def process_observation(
+        self,
+        obs: Observation,
+        vulnerability_key: str,
+        service_id: str = "",
+        severity: str = "medium",
+        confidence: str = "potential",
+        cve_id: str = None,
+        cwe_id: str = None,
+    ) -> uuid.UUID:
+        now = datetime.utcnow()
+        raw_data = obs.raw_data or {}
 
-    def process_observation(self, obs: Observation, vulnerability_key: str, service_id: str = "") -> Finding:
-        fingerprint = self._generate_fingerprint(str(obs.tenant_id), str(obs.asset_id), service_id, vulnerability_key)
-        
-        existing = self.db.query(Finding).filter(
-            Finding.tenant_id == obs.tenant_id,
-            Finding.asset_id == obs.asset_id,
-            Finding.vulnerability_key == vulnerability_key
-        ).first()
-
-        if existing:
-            existing.last_seen = datetime.utcnow()
-            existing.observations.append(obs)
-            self.db.commit()
-            return existing
-
-        finding = Finding(
+        statement = insert(Finding).values(
+            id=uuid.uuid4(),
             tenant_id=obs.tenant_id,
             asset_id=obs.asset_id,
             service_id=service_id,
             engine_id=obs.engine_id,
-            engine_version="1.0.0",
-            title=f"{vulnerability_key} detected on {service_id or 'unknown service'}",
+            engine_version=raw_data.get("engine_version", "1.0.0"),
+            title=f"{vulnerability_key} detected on {service_id or 'unknown'}",
             vulnerability_key=vulnerability_key,
-            severity="medium",
-            confidence="potential",
+            cve_id=cve_id,
+            cwe_id=cwe_id,
+            severity=severity,
+            confidence=confidence,
             validation_status="potential",
             workflow_status="open",
-            observations=[obs]
+            first_seen=now,
+            last_seen=now,
         )
-        self.db.add(finding)
+
+        statement = statement.on_conflict_do_update(
+            constraint="uq_finding_deduplication",
+            set_={
+                "last_seen": now,
+                "severity": severity,
+                "confidence": confidence,
+                "updated_at": now,
+            },
+        ).returning(Finding.id)
+
+        finding_id = self.db.execute(statement).scalar_one()
+
+        finding = self.db.query(Finding).filter(Finding.id == finding_id).first()
+        if finding is not None:
+            linked_observation_ids = {
+                item.id for item in finding.observations
+            }
+            if obs.id not in linked_observation_ids:
+                finding.observations.append(obs)
+
         self.db.commit()
-        self.db.refresh(finding)
-        return finding
+        return finding_id
