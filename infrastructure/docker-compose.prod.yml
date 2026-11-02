@@ -1,15 +1,63 @@
 version: '3.8'
 
 services:
-  nginx:
-    ports:
-      - "80:80"
-      - "443:443"
+  db:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+    environment:
+      POSTGRES_USER: kravigil_admin
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: kravigil_db
     volumes:
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - data_plane
+
+  redis:
+    restart: always
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redisdata:/data
+    networks:
+      - data_plane
+
+  minio:
+    restart: always
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
+    volumes:
+      - miniodata:/data
+    networks:
+      - data_plane
+
+  network_engine:
+    restart: always
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_RAW
+    security_opt:
+      - no-new-privileges:true
+      - seccomp:./seccomp/network_engine.json
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m
+    networks:
+      - execution_plane
 
   backend:
+    restart: always
     deploy:
       replicas: 3
       resources:
@@ -17,27 +65,78 @@ services:
           cpus: '2'
           memory: 4G
     environment:
+      - DATABASE_URL=postgresql://kravigil_admin:${DB_PASSWORD}@db:5432/kravigil_db
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_USER}
+      - MINIO_SECRET_KEY=${MINIO_PASSWORD}
+      - SECRET_KEY=${SECRET_KEY}
       - DEBUG=false
+    depends_on:
+      - db
+      - redis
+      - minio
+    networks:
+      - control_plane
+      - data_plane
+      - execution_plane
+      - monitoring_plane
 
   worker:
+    restart: always
     deploy:
       replicas: 5
       resources:
         limits:
           cpus: '4'
           memory: 8G
+    environment:
+      - DATABASE_URL=postgresql://kravigil_admin:${DB_PASSWORD}@db:5432/kravigil_db
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_USER}
+      - MINIO_SECRET_KEY=${MINIO_PASSWORD}
+      - SECRET_KEY=${SECRET_KEY}
+    depends_on:
+      - redis
+      - db
+      - network_engine
+    networks:
+      - control_plane
+      - data_plane
+      - execution_plane
 
-  network_engine:
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          cpus: '2'
-          memory: 2G
+  frontend:
+    restart: always
+    networks:
+      - control_plane
 
-  db:
-    deploy:
-      resources:
-        limits:
-          cpus: '4'
-          memory: 8G
+  nginx:
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - control_plane
+
+networks:
+  control_plane:
+    driver: bridge
+  data_plane:
+    driver: bridge
+    internal: true
+  execution_plane:
+    driver: bridge
+  monitoring_plane:
+    driver: bridge
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
