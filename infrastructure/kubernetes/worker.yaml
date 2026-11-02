@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: kravigil
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+      - name: worker
+        image: ghcr.io/your-org/kravigil-worker:latest
+        envFrom:
+        - secretRef:
+            name: backend-secret
+        resources:
+          limits:
+            cpu: "1"
+            memory: "1Gi"
