@@ -3,30 +3,36 @@ syntax = "proto3";
 package kravigil.network.v1;
 
 service NetworkScanner {
-    rpc StartScan(ScanRequest) returns (stream ScanEvent);
-    rpc CancelScan(CancelRequest) returns (CancelResponse);
+  rpc StartScan(ScanRequest) returns (stream ScanEvent);
+  rpc CancelScan(CancelRequest) returns (CancelResponse);
 }
 
 message ScanRequest {
-    string scan_id = 1;
-    string authorization_id = 2;
-    string target_ip = 3;
-    repeated uint32 ports = 4;
-    uint32 timeout_ms = 5;
+  string scan_id = 1;
+  string authorization_id = 2;
+  string target_ip = 3;
+  repeated uint32 ports = 4;
+  uint32 timeout_ms = 5;
 }
 
 message ScanEvent {
-    string scan_id = 1;
-    string event_type = 2;
-    string target_ip = 3;
-    uint32 port = 4;
-    string status = 5;
+  string scan_id = 1;
+  string event_type = 2;
+  string target_ip = 3;
+  uint32 port = 4;
+  string status = 5;
+  string engine_version = 6;
+  string error_message = 7;
+  uint32 completed_ports = 8;
+  uint32 total_ports = 9;
 }
 
 message CancelRequest {
-    string scan_id = 1;
+  string scan_id = 1;
+  string authorization_id = 2;
 }
 
 message CancelResponse {
-    bool accepted = 1;
+  bool accepted = 1;
+  string message = 2;
 }
