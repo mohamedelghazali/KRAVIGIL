@@ -34,13 +34,14 @@ class SASTScanCreate(BaseModel):
     code_path: str
 
 class ScanResponse(BaseModel):
-    scan_id: uuid.UUID
+    id: uuid.UUID
+    scan_type: str
     status: str
 
     class Config:
         from_attributes = True
 
-def _init_scan(db: Session, tenant_id: uuid.UUID, target_id: uuid.UUID, scan_type: str) -> Scan:
+def _init_scan(db: Session, tenant_id: uuid.UUID, target_id: uuid.UUID, scan_type: str) -> tuple[Scan, Asset]:
     target = db.query(Target).filter(Target.id == target_id).first()
     if not target: raise HTTPException(status_code=404, detail="Target not found")
     if not target.is_authorized: raise ScopeViolationException("Target is not authorized")
@@ -86,7 +87,7 @@ def start_network_scan(
             target_ip=asset.ip_address,
             ports=scan_in.ports
         )
-        return {"scan_id": scan.id, "status": scan.status}
+        return scan
     except (HTTPException, ScopeViolationException):
         raise
     except Exception as e:
@@ -103,14 +104,14 @@ def start_web_scan(
         scan, asset = _init_scan(db, current_user.tenant_id, scan_in.target_id, "WEB")
         target = db.query(Target).filter(Target.id == scan_in.target_id).first()
         target_url = target.domain or f"http://{target.ip_address}"
-        
+
         run_web_scan.delay(
             tenant_id=str(current_user.tenant_id),
             scan_id=str(scan.id),
             asset_id=str(asset.id),
             target_url=target_url
         )
-        return {"scan_id": scan.id, "status": scan.status}
+        return scan
     except (HTTPException, ScopeViolationException):
         raise
     except Exception as e:
@@ -144,12 +145,19 @@ def start_sast_scan(
             asset_id=str(asset.id),
             code_path=scan_in.code_path
         )
-        return {"scan_id": scan.id, "status": scan.status}
+        return scan
     except HTTPException:
         raise
     except Exception as e:
         db.rollback()
         raise KravigilException(message=f"Failed to initiate SAST scan: {str(e)}", status_code=500, error_code="SCAN_INIT_ERROR")
+
+@router.get("/", response_model=List[ScanResponse])
+def list_scans(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_tenant_db)
+):
+    return db.query(Scan).order_by(Scan.created_at.desc()).all()
 
 @router.get("/{scan_id}", response_model=ScanResponse)
 def get_scan_status(
