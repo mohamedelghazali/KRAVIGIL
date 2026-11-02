@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Vulnerability Report - {{ scan.id }}</title>
+  <style>
+    @page { size: A4; margin: 18mm; }
+    body { font-family: Helvetica, Arial, sans-serif; color: #333; font-size: 11px; }
+    h1 { color: #1a1a1a; border-bottom: 2px solid #0056b3; padding-bottom: 6px; }
+    h2 { color: #0056b3; margin-top: 20px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    tr { page-break-inside: avoid; }
+    th, td { border: 1px solid #ddd; padding: 7px; text-align: left; overflow-wrap: anywhere; }
+    th { background: #f4f4f4; }
+    .severity-critical { color: #b42318; font-weight: bold; }
+    .severity-high { color: #b54708; font-weight: bold; }
+    .severity-medium { color: #175cd3; }
+    .severity-low { color: #027a48; }
+  </style>
+</head>
+<body>
+  <h1>Vulnerability Assessment Report</h1>
+  <section>
+    <h2>Scan Information</h2>
+    <p><strong>Scan ID:</strong> {{ scan.id }}</p>
+    <p><strong>Target:</strong> {{ scan.target_ip }}</p>
+    <p><strong>Date:</strong> {{ scan.created_at }}</p>
+    <p><strong>Total Findings:</strong> {{ findings|length }}</p>
+  </section>
+  <h2>Detailed Findings</h2>
+  <table>
+    <thead><tr><th>ID</th><th>Title</th><th>Severity</th><th>Confidence</th><th>CVE</th><th>Remediation</th></tr></thead>
+    <tbody>
+    {% for finding in findings %}
+      <tr>
+        <td>{{ finding.id }}</td><td>{{ finding.title }}</td>
+        <td class="severity-{{ finding.severity|lower }}">{{ finding.severity }}</td>
+        <td>{{ finding.confidence }}</td><td>{{ finding.cve_id or 'N/A' }}</td>
+        <td>{{ finding.remediation or 'N/A' }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6">No findings were recorded for this scan.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>
