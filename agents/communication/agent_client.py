@@ -1,8 +1,9 @@
 import time
 import logging
 import httpx
-from typing import Dict, Any
+from typing import Dict, Any, List
 from agents.identity.identity_manager import IdentityManager
+from agents.execution.local_scanner import LocalScanner
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +13,8 @@ class AgentClient:
         self.identity = IdentityManager()
         self.fingerprint, self.public_key = self.identity.generate_identity("kravigil-agent")
         self.client = httpx.Client(verify=self.identity.get_ssl_context(), timeout=30.0)
+        self.scanner = LocalScanner()
+        self.headers = {"X-Agent-Fingerprint": self.fingerprint}
 
     def enroll(self, agent_name: str, version: str, ip_address: str) -> bool:
         payload = {
@@ -22,13 +25,12 @@ class AgentClient:
             "ip_address": ip_address
         }
         try:
-            response = self.client.post(f"{self.control_plane_url}/api/v1/agents/enroll", json=payload)
+            response = self.client.post(f"{self.control_plane_url}/api/v1/agents/enroll", json=payload, headers=self.headers)
             if response.status_code == 201:
                 logger.info("Agent enrolled successfully")
                 return True
-            else:
-                logger.error(f"Enrollment failed: {response.text}")
-                return False
+            logger.error(f"Enrollment failed: {response.text}")
+            return False
         except Exception as e:
             logger.error(f"Enrollment request failed: {e}")
             return False
@@ -40,19 +42,67 @@ class AgentClient:
             "ip_address": ip_address
         }
         try:
-            response = self.client.post(f"{self.control_plane_url}/api/v1/agents/heartbeat", json=payload)
+            response = self.client.post(f"{self.control_plane_url}/api/v1/agents/heartbeat", json=payload, headers=self.headers)
             return response.status_code == 200
         except Exception as e:
-            logger.error(f"Heartbeat failed: {e}")
             return False
 
-    def run_heartbeat_loop(self, interval_seconds: int = 60):
+    def poll_and_execute(self) -> None:
+        try:
+            response = self.client.get(f"{self.control_plane_url}/api/v1/agents/tasks/poll", headers=self.headers)
+            if response.status_code != 200:
+                return
+
+            tasks = response.json()
+            for task in tasks:
+                self._execute_task(task)
+        except Exception as e:
+            logger.error(f"Polling failed: {e}")
+
+    def _execute_task(self, task: Dict[str, Any]) -> None:
+        task_id = task["id"]
+        command = task["command_type"]
+        params = task["parameters"]
+
+        logger.info(f"Executing task {task_id} - {command}")
+
+        try:
+            if command == "START_SCAN":
+                target_ip = params.get("target_ip")
+                ports = params.get("ports", [22, 80, 443])
+                observations = self.scanner.scan_target(target_ip, ports)
+
+                payload = {
+                    "status": "COMPLETED",
+                    "observations": observations
+                }
+            else:
+                payload = {
+                    "status": "FAILED",
+                    "error_message": f"Unknown command: {command}"
+                }
+
+            self.client.post(
+                f"{self.control_plane_url}/api/v1/agents/tasks/{task_id}/submit",
+                json=payload,
+                headers=self.headers
+            )
+        except Exception as e:
+            logger.error(f"Task execution failed {task_id}: {e}")
+            self.client.post(
+                f"{self.control_plane_url}/api/v1/agents/tasks/{task_id}/submit",
+                json={"status": "FAILED", "error_message": str(e)},
+                headers=self.headers
+            )
+
+    def run_loop(self, interval_seconds: int = 10):
         while True:
             try:
                 self.send_heartbeat(status="ONLINE", ip_address="127.0.0.1")
+                self.poll_and_execute()
                 time.sleep(interval_seconds)
             except KeyboardInterrupt:
                 break
             except Exception as e:
-                logger.error(f"Heartbeat loop error: {e}")
+                logger.error(f"Agent loop error: {e}")
                 time.sleep(10)
