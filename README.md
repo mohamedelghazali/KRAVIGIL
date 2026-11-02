@@ -1,68 +1,97 @@
-# KRAVIGIL Core
+\# KRAVIGIL Core
 
-Enterprise Vulnerability Assessment & Security Intelligence Platform.
+**Enterprise Vulnerability Assessment & Security Intelligence Platform**
 
-## Overview
+KRAVIGIL is a distributed, multi-engine platform designed for high-accuracy vulnerability discovery, evidence-based validation, and enterprise-grade security management. It moves beyond simple scanning by correlating findings, scoring risks dynamically, and isolating execution environments.
 
-KRAVIGIL is a modular, distributed vulnerability management platform designed for high accuracy, evidence-based validation, and enterprise security.
+## 🌟 Core Capabilities
 
-## Features
+- **High-Performance Network Engine**: C++ engine using \`Boost.Asio\` and \`gRPC\` for rapid, asynchronous port scanning without thread exhaustion.
+- **Multi-Engine Orchestration**: Unified pipeline for Nuclei (Web), Semgrep (SAST), Gitleaks (Secrets), and Trivy (Containers).
+- **Evidence-Based Validation**: SHA-256 hashed evidence stored immutably in MinIO. No finding is trusted without a verifiable evidence trail.
+- **AI Intelligence Gateway**: Integration with Gemini API, protected by a robust Prompt Injection firewall and strict output validation.
+- **Dynamic Risk Engine**: Real-time scoring using CVSS, EPSS, CISA KEV, and asset context.
+- **Zero-Trust Architecture**: PostgreSQL Row-Level Security (RLS), strict network segmentation, and scoped API keys.
+- **Real-Time Observability**: Built-in OpenTelemetry tracing, Prometheus metrics, and WebSocket dashboards.
 
-- **Network Scanner**: C++ engine using Boost.Asio and gRPC for high-throughput port scanning.
-- **Web & Code Scanners**: Integration with Nuclei and Semgrep for comprehensive web and SAST coverage.
-- **Container & Secrets Scanning**: Trivy and Gitleaks adapters for modern supply chain security.
-- **Evidence-Based Validation**: SHA-256 hashed evidence storage in MinIO with immutable retention.
-- **AI Intelligence**: Gemini API integration with prompt injection protection and output validation.
-- **Risk Engine**: Dynamic risk scoring using CVSS, EPSS, and CISA KEV data.
-- **Multi-Tenancy**: PostgreSQL Row-Level Security (RLS) for strict data isolation.
-- **Observability**: OpenTelemetry tracing and Prometheus metrics.
+## 🏗️ Architecture Overview
 
-## Architecture
+\`\`\`text
+[ Vue 3 Dashboard ] <---> [ Nginx Reverse Proxy ] <---> [ FastAPI Backend ]
+                                                             |
+                                                    [ Celery + Redis ]
+                                                             |
+                    +----------------------------------------+----------------------------------------+
+                    |                                        |                                        |
+            [ C++ Network Engine ]                 [ External Scanners ]                     [ AI Gateway ]
+            (gRPC, Boost.Asio)                     (Nuclei, Semgrep, Trivy)                  (Gemini API)
+                    |                                        |                                        |
+            [ Isolated Execution Plane ]           [ Target Networks / Code ]                [ Sanitized Evidence ]
+                                                             |
+                                                    [ PostgreSQL + MinIO ]
+\`\`\`
 
-```text
-[ Frontend (Vue 3) ] <---> [ Nginx ] <---> [ FastAPI Backend ]
-                                                |
-                                       [ Celery + Redis ]
-                                                |
-                         +----------------------+----------------------+
-                         |                      |                      |
-                 [ C++ Network Engine ]   [ Web Scanners ]     [ AI Gateway ]
-                         |                      |                      |
-                 [ Target Networks ]     [ Target URLs ]      [ Gemini API ]
-                                                |
-                                       [ PostgreSQL + MinIO ]
-```
+## 🚀 Quick Start
 
-## Quick Start
+### Prerequisites
+- Docker Engine v24+
+- Docker Compose v2+
+- Python 3.11 (for local development without Docker)
 
-1. Clone the repository:
-   ```bash
+### Installation
+
+1. **Clone the repository:**
+   \`\`\`bash
    git clone https://github.com/your-org/kravigil.git
    cd kravigil
-   ```
+   \`\`\`
 
-2. Configure environment:
-   ```bash
+2. **Configure Environment:**
+   \`\`\`bash
    cp .env.example .env
-   # Edit .env with your secure secrets
-   ```
+   # Edit .env and set secure passwords, SECRET_KEY, and GEMINI_API_KEY
+   \`\`\`
 
-3. Build and run:
-   ```bash
+3. **Build and Run:**
+   \`\`\`bash
    make build
    make up
-   ```
+   \`\`\`
 
-4. Access the dashboard at `http://localhost`.
-   Default admin credentials will be generated on first boot (check logs).
+4. **Initialize Database:**
+   \`\`\`bash
+   docker-compose exec backend alembic upgrade head
+   docker-compose exec backend python /app/scripts/seed_db.py
+   \`\`\`
 
-## Security
+5. **Access the Dashboard:**
+   Navigate to \`http://localhost\`. Log in with the admin credentials generated by the seed script (default: \`admin@kravigil.local\` / \`AdminPassword123!\`).
 
-- **Scope Guard**: Strict validation to prevent SSRF and unauthorized scanning.
-- **Zero Trust**: mTLS and isolated execution planes for all engines.
-- **Immutable Evidence**: WORM (Write Once Read Many) storage policies for compliance.
-- **API Keys**: Scoped API keys with expiration for machine-to-machine access.
+## 🛡️ Security Model
 
-## License
+- **Tenant Isolation**: Enforced via PostgreSQL RLS. Every query requires setting \`app.tenant_id\`.
+- **Scope Guard**: Blocks SSRF, DNS Rebinding, and scanning of RFC 1918 / Metadata IPs (e.g., \`169.254.169.254\`).
+- **Sandboxing**: Network engine runs as non-root, read-only filesystem, dropping all capabilities except \`NET_RAW\`.
+- **AI Security**: Untrusted evidence is stripped of HTML/JS and prompt injections are redacted before reaching the LLM.
+- **Immutable Evidence**: Stored in MinIO with Object Lock (COMPLIANCE mode) and SHA-256 verification.
+
+## 🛠️ Technology Stack
+
+- **Backend**: Python 3.11, FastAPI, SQLAlchemy 2.0, Celery
+- **Frontend**: Vue 3, TypeScript, Pinia, Vite
+- **Network Engine**: C++17, Boost.Asio, gRPC, Protocol Buffers
+- **Databases**: PostgreSQL 15, Redis 7, MinIO
+- **Observability**: OpenTelemetry, Prometheus
+- **AI**: Google Gemini API (via \`google-genai\`)
+
+## 📚 Documentation
+
+Detailed architecture, security models, and engine specifications are available in the \`docs/\` directory:
+- [Architecture](docs/architecture/ARCHITECTURE.md)
+- [Security Model](docs/security/SECURITY_MODEL.md)
+- [Engine Specification](docs/ENGINE_SPECIFICATION.md)
+- [Production Deployment](docs/deployment/PRODUCTION.md)
+
+## 📄 License
 
 Proprietary. All rights reserved.
