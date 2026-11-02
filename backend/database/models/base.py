@@ -1,1 +1,3 @@
-"""KRAVIGIL module scaffold. Implementation pending. Enforce authorization, tenant isolation, bounded resources, and auditability before production use."""
+from sqlalchemy.orm import declarative_base
+
+Base = declarative_base()
