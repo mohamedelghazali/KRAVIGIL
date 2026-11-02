@@ -35,6 +35,17 @@ services:
     networks:
       - data_plane
 
+  target-minio:
+    image: minio/minio:latest
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
+    volumes:
+      - target-miniodata:/data
+    networks:
+      - data_plane
+
   network_engine:
     restart: always
     deploy:
@@ -140,3 +151,4 @@ volumes:
   pgdata:
   redisdata:
   miniodata:
+  target-miniodata:
