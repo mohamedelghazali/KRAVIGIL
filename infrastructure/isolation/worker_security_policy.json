@@ -1,0 +1,18 @@
+{
+  "version": "1.0",
+  "network_isolation": {
+    "mode": "isolated",
+    "allowed_egress": [{"destination_cidr": "0.0.0.0/0", "port_range": "80,443", "protocol": "tcp"}],
+    "denied_egress": [
+      {"destination_cidr": "169.254.169.254/32", "reason": "Cloud metadata endpoint"},
+      {"destination_cidr": "10.0.0.0/8", "reason": "Private network"},
+      {"destination_cidr": "172.16.0.0/12", "reason": "Private network"},
+      {"destination_cidr": "192.168.0.0/16", "reason": "Private network"},
+      {"destination_cidr": "127.0.0.0/8", "reason": "Loopback"},
+      {"destination_cidr": "::/0", "reason": "IPv6 egress denied by default"}
+    ]
+  },
+  "resource_limits": {"cpu_quota": 200000, "memory_limit_bytes": 1073741824, "pids_limit": 256, "open_files_limit": 4096},
+  "capabilities": {"drop": ["ALL"], "add": ["NET_RAW"]},
+  "security_options": {"no_new_privileges": true, "read_only_rootfs": true, "tmpfs_size_mb": 512}
+}
