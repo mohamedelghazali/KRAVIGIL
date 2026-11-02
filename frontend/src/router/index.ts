@@ -5,16 +5,22 @@ import Login from '../views/Login.vue'
 import Findings from '../views/Findings.vue'
 import Scans from '../views/Scans.vue'
 import Targets from '../views/Targets.vue'
+import Assets from '../views/Assets.vue'
+import Risk from '../views/Risk.vue'
+import Settings from '../views/Settings.vue'
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/login', component: Login, meta: { requiresAuth: false } },
     { path: '/', component: Dashboard, meta: { requiresAuth: true } },
-    { path: '/findings', component: Findings, meta: { requiresAuth: true } },
-    { path: '/scans', component: Scans, meta: { requiresAuth: true } },
     { path: '/targets', component: Targets, meta: { requiresAuth: true } },
-    { path: '/reports', component: Reports, meta: { requiresAuth: true } }
+    { path: '/assets', component: Assets, meta: { requiresAuth: true } },
+    { path: '/scans', component: Scans, meta: { requiresAuth: true } },
+    { path: '/findings', component: Findings, meta: { requiresAuth: true } },
+    { path: '/risk', component: Risk, meta: { requiresAuth: true } },
+    { path: '/reports', component: Reports, meta: { requiresAuth: true } },
+    { path: '/settings', component: Settings, meta: { requiresAuth: true } }
   ]
 })
 
