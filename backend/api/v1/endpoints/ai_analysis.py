@@ -1,52 +1,33 @@
+import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from backend.database.models.finding import Finding
-from backend.database.models.observation import Observation
 from backend.database.models.user import User
 from backend.database.session import get_tenant_db
-from backend.core.security import get_current_user
-from ai.gateway.ai_gateway import AIGateway
-import uuid
+from backend.core.security import require_role
+from workers.tasks import analyze_finding_with_ai
 
 router = APIRouter()
 
-@router.post("/analyze/{finding_id}")
-async def analyze_finding(
+@router.post("/analyze/{finding_id}", status_code=202)
+def trigger_ai_analysis(
     finding_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_tenant_db)
+    current_user: User = Depends(require_role(["admin", "analyst"])),
+    db: Session = Depends(get_tenant_db),
 ):
-    finding = db.query(Finding).filter(Finding.id == finding_id).first()
-    if not finding:
+    tenant_id = getattr(current_user, "organization_id", None)
+    if tenant_id is None:
+        tenant_id = getattr(current_user, "tenant_id", None)
+    if tenant_id is None:
+        raise HTTPException(status_code=403, detail="Tenant context missing")
+    finding = db.query(Finding).filter(
+        Finding.id == finding_id,
+        Finding.tenant_id == tenant_id,
+    ).first()
+    if finding is None:
         raise HTTPException(status_code=404, detail="Finding not found")
-
-    observations = db.query(Observation).filter(
-        Observation.id.in_([obs.id for obs in finding.observations])
-    ).all()
-    
-    evidence_text = " ".join([str(obs.raw_data) for obs in observations])
-    
-    finding_data = {
-        "title": finding.title,
-        "severity": finding.severity,
-        "engine": finding.engine_id,
-        "cve": finding.cve_id
-    }
-
-    gateway = AIGateway()
-    try:
-        result = await gateway.process_finding_analysis(finding_data, evidence_text)
-        
-        if result["is_true_positive"] and result["confidence_score"] > 0.8:
-            finding.confidence = "high"
-        elif result["is_true_positive"]:
-            finding.confidence = "medium"
-        else:
-            finding.confidence = "low"
-            
-        finding.remediation = result["remediation"]
-        db.commit()
-        
-        return result
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    analyze_finding_with_ai.delay(
+        tenant_id=str(tenant_id),
+        finding_id=str(finding.id),
+    )
+    return {"status": "queued", "finding_id": str(finding_id)}
