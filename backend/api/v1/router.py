@@ -2,12 +2,13 @@ from fastapi import APIRouter
 from backend.api.v1.endpoints import (
     auth, targets, assets, scans, findings, ai_analysis, 
     evidence, reports, risk, agents, webhooks, api_keys, settings, 
-    agent_tasks, system
+    agent_tasks, system, users, audit_logs
 )
 
 api_router = APIRouter()
 
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+api_router.include_router(users.router, prefix="/users", tags=["Users"])
 api_router.include_router(targets.router, prefix="/targets", tags=["Targets"])
 api_router.include_router(assets.router, prefix="/assets", tags=["Assets"])
 api_router.include_router(scans.router, prefix="/scans", tags=["Scans"])
@@ -21,4 +22,5 @@ api_router.include_router(agent_tasks.router, prefix="/agent-tasks", tags=["Agen
 api_router.include_router(webhooks.router, prefix="/webhooks", tags=["Webhooks"])
 api_router.include_router(api_keys.router, prefix="/api-keys", tags=["API Keys"])
 api_router.include_router(settings.router, prefix="/settings", tags=["Settings"])
+api_router.include_router(audit_logs.router, prefix="/audit-logs", tags=["Audit Logs"])
 api_router.include_router(system.router, prefix="/system", tags=["System"])
