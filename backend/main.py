@@ -7,6 +7,7 @@ from backend.core.logging import setup_logging
 from backend.core.exceptions import KravigilException, kravigil_exception_handler, generic_exception_handler
 from backend.core.rate_limiter import RateLimitMiddleware
 from backend.core.telemetry import setup_telemetry
+from backend.core.metrics import setup_metrics
 from backend.api.v1.router import api_router
 from backend.api.websockets.scans import scan_websocket_endpoint
 from backend.database.session import engine
@@ -32,12 +33,13 @@ app.add_middleware(
     allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["Authorization", "Content-Type", "X-API-Key"],
 )
 
 app.add_middleware(RateLimitMiddleware, redis_url=settings.REDIS_URL, default_limit=1000, window_seconds=60)
 
 setup_telemetry(app)
+setup_metrics(app)
 
 app.include_router(api_router, prefix="/api/v1")
 
