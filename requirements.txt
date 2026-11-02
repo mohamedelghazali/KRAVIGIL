@@ -16,3 +16,5 @@ celery==5.3.6
 redis==5.0.1
 google-genai==0.1.0
 minio==7.2.10
+Jinja2==3.1.4
+WeasyPrint==61.2
