@@ -17,6 +17,14 @@ services:
       timeout: 5s
       retries: 5
 
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://kravigil_admin:${DB_PASSWORD:-kravigil_secure_db_pass}@db:5432/kravigil_db?sslmode=disable"
+    networks:
+      - data_plane
+      - monitoring_plane
+
   redis:
     image: redis:7-alpine
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-kravigil_secure_redis_pass}
@@ -29,6 +37,15 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  redis-exporter:
+    image: oliver006/redis_exporter
+    environment:
+      REDIS_ADDR: redis://redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-kravigil_secure_redis_pass}
+    networks:
+      - data_plane
+      - monitoring_plane
 
   minio:
     image: minio/minio:latest
@@ -58,6 +75,7 @@ services:
       - NET_RAW
     security_opt:
       - no-new-privileges:true
+      - seccomp:./seccomp/network_engine.json
     read_only: true
     tmpfs:
       - /tmp:size=512m
@@ -88,6 +106,7 @@ services:
       - control_plane
       - data_plane
       - execution_plane
+      - monitoring_plane
     restart: unless-stopped
 
   worker:
@@ -135,6 +154,28 @@ services:
       - control_plane
     restart: unless-stopped
 
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    networks:
+      - monitoring_plane
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafanadata:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - monitoring_plane
+    restart: unless-stopped
+
 networks:
   control_plane:
     driver: bridge
@@ -143,8 +184,12 @@ networks:
     internal: true
   execution_plane:
     driver: bridge
+  monitoring_plane:
+    driver: bridge
 
 volumes:
   pgdata:
   redisdata:
   miniodata:
+  promdata:
+  grafanadata:
