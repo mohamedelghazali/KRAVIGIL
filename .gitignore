@@ -1,21 +1,65 @@
+# Environment files
 .env
-.env.*
-!.env.example
-.venv/
-venv/
+.env.local
+.env.production
+*.env
+
+# Python
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-.coverage
-htmlcov/
+*.egg-info/
 dist/
 build/
+
+# Node
 node_modules/
-frontend/dist/
-*.egg-info/
-.idea/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.vite/
+dist/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+test_kravigil.db
+
+# IDE
 .vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Logs
 *.log
+logs/
+
+# Secrets & Certs
+*.pem
+*.key
+*.crt
+secrets/
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Coverage
+.coverage
+htmlcov/
+coverage.xml
