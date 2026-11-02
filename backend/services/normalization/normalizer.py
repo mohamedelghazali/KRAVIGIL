@@ -32,38 +32,12 @@ class Normalizer:
         )
 
     @staticmethod
-    def from_semgrep_result(tenant_id: uuid.UUID, scan_id: uuid.UUID, asset_id: uuid.UUID, result: dict) -> Observation:
+    def from_cloud_result(tenant_id: uuid.UUID, scan_id: uuid.UUID, asset_id: uuid.UUID, result: dict) -> Observation:
         return Observation(
             id=uuid.uuid4(), tenant_id=tenant_id, scan_id=scan_id, asset_id=asset_id,
-            engine_id="semgrep", event_type="CODE_VULNERABILITY",
-            raw_data={
-                "title": result.get("check_id"), "severity": result.get("severity"),
-                "description": result.get("message"), "path": result.get("path"),
-                "line": result.get("line"), "cwe_id": result.get("cwe_id")
-            }
-        )
-
-    @staticmethod
-    def from_gitleaks_result(tenant_id: uuid.UUID, scan_id: uuid.UUID, asset_id: uuid.UUID, result: dict) -> Observation:
-        return Observation(
-            id=uuid.uuid4(), tenant_id=tenant_id, scan_id=scan_id, asset_id=asset_id,
-            engine_id="gitleaks", event_type="SECRET_FOUND",
+            engine_id="cloud_scanner", event_type="CLOUD_MISCONFIGURATION",
             raw_data={
                 "title": result.get("title"), "severity": result.get("severity"),
-                "description": result.get("description"), "file": result.get("file"),
-                "line": result.get("line"), "rule_id": result.get("rule_id")
-            }
-        )
-
-    @staticmethod
-    def from_trivy_result(tenant_id: uuid.UUID, scan_id: uuid.UUID, asset_id: uuid.UUID, result: dict) -> Observation:
-        return Observation(
-            id=uuid.uuid4(), tenant_id=tenant_id, scan_id=scan_id, asset_id=asset_id,
-            engine_id="trivy", event_type="CONTAINER_VULNERABILITY",
-            raw_data={
-                "title": result.get("title"), "severity": result.get("severity"),
-                "description": result.get("description"), "cve_id": result.get("cve_id"),
-                "package_name": result.get("package_name"), "installed_version": result.get("installed_version"),
-                "fixed_version": result.get("fixed_version")
+                "description": result.get("description"), "resource_arn": result.get("raw", {}).get("resource_arn")
             }
         )
