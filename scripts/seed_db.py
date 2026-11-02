@@ -1,0 +1,56 @@
+import os
+import sys
+import logging
+import uuid
+from sqlalchemy.orm import Session
+from backend.database.session import SessionLocal, engine
+from backend.database.models.base import Base
+from backend.database.models.user import Organization, User
+from backend.core.security import security_service
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def seed_database():
+    Base.metadata.create_all(bind=engine)
+    db: Session = SessionLocal()
+
+    try:
+        org = db.query(Organization).filter(Organization.name == "Default Organization").first()
+        if not org:
+            org = Organization(id=uuid.uuid4(), name="Default Organization")
+            db.add(org)
+            db.commit()
+            db.refresh(org)
+            logger.info("Created Default Organization")
+        else:
+            logger.info("Default Organization already exists")
+
+        admin_email = os.getenv("ADMIN_EMAIL", "admin@kravigil.local")
+        admin_password = os.getenv("ADMIN_PASSWORD", "AdminPassword123!")
+
+        admin = db.query(User).filter(User.email == admin_email).first()
+        if not admin:
+            admin = User(
+                id=uuid.uuid4(),
+                tenant_id=org.id,
+                email=admin_email,
+                hashed_password=security_service.get_password_hash(admin_password),
+                role="admin",
+                is_active=True
+            )
+            db.add(admin)
+            db.commit()
+            logger.info(f"Created Admin User: {admin_email} / {admin_password}")
+        else:
+            logger.info(f"Admin User {admin_email} already exists")
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Seeding failed: {e}")
+        sys.exit(1)
+    finally:
+        db.close()
+
+if __name__ == "__main__":
+    seed_database()
