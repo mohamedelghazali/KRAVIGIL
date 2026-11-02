@@ -1,3 +1,32 @@
 syntax = "proto3";
+
 package kravigil.network.v1;
-// Define versioned RPC contracts before implementing handlers.
+
+service NetworkScanner {
+    rpc StartScan(ScanRequest) returns (stream ScanEvent);
+    rpc CancelScan(CancelRequest) returns (CancelResponse);
+}
+
+message ScanRequest {
+    string scan_id = 1;
+    string authorization_id = 2;
+    string target_ip = 3;
+    repeated uint32 ports = 4;
+    uint32 timeout_ms = 5;
+}
+
+message ScanEvent {
+    string scan_id = 1;
+    string event_type = 2;
+    string target_ip = 3;
+    uint32 port = 4;
+    string status = 5;
+}
+
+message CancelRequest {
+    string scan_id = 1;
+}
+
+message CancelResponse {
+    bool accepted = 1;
+}
