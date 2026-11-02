@@ -22,10 +22,9 @@ AsyncScanner::AsyncScanner(
       max_in_flight_(std::max<std::size_t>(1, max_in_flight)) {}
 
 void AsyncScanner::start() {
-    if (stopped_) {
-        return;
+    if (!stopped_) {
+        schedule_next();
     }
-    schedule_next();
 }
 
 void AsyncScanner::stop() {
@@ -57,14 +56,10 @@ void AsyncScanner::schedule_next() {
     }
 
     std::vector<uint32_t> pending_ports;
-
     {
         std::lock_guard<std::mutex> lock(state_mutex_);
-
-        while (
-            current_port_index_ < ports_.size() &&
-            in_flight_.load() < max_in_flight_
-        ) {
+        while (current_port_index_ < ports_.size() &&
+               in_flight_.load() < max_in_flight_) {
             pending_ports.push_back(ports_[current_port_index_++]);
             in_flight_.fetch_add(1);
         }
@@ -93,55 +88,44 @@ void AsyncScanner::try_connect(uint32_t port) {
     try {
         const auto address = boost::asio::ip::make_address(target_ip_);
         const tcp::endpoint endpoint(address, static_cast<unsigned short>(port));
-
         timer->expires_after(std::chrono::milliseconds(timeout_ms_));
 
-        timer->async_wait(
-            [self, socket, completed, port](const boost::system::error_code& ec) {
-                if (ec || completed->exchange(true)) {
-                    return;
-                }
-
-                boost::system::error_code ignored;
-                socket->cancel(ignored);
-                socket->close(ignored);
-
-                self->in_flight_.fetch_sub(1);
-
-                if (!self->stopped_) {
-                    self->callback_(port, false);
-                    self->schedule_next();
-                }
+        timer->async_wait([self, socket, completed, port](
+            const boost::system::error_code& ec
+        ) {
+            if (ec || completed->exchange(true)) {
+                return;
             }
-        );
-
-        socket->async_connect(
-            endpoint,
-            [self, socket, timer, completed, port](
-                const boost::system::error_code& ec
-            ) {
-                if (completed->exchange(true)) {
-                    return;
-                }
-
-                boost::system::error_code ignored;
-                timer->cancel(ignored);
-
-                self->in_flight_.fetch_sub(1);
-
-                if (!self->stopped_) {
-                    self->callback_(port, !ec);
-                    self->schedule_next();
-                }
+            boost::system::error_code ignored;
+            socket->cancel(ignored);
+            socket->close(ignored);
+            self->in_flight_.fetch_sub(1);
+            if (!self->stopped_) {
+                self->callback_(port, false);
+                self->schedule_next();
             }
-        );
+        });
+
+        socket->async_connect(endpoint, [self, socket, timer, completed, port](
+            const boost::system::error_code& ec
+        ) {
+            if (completed->exchange(true)) {
+                return;
+            }
+            boost::system::error_code ignored;
+            timer->cancel(ignored);
+            self->in_flight_.fetch_sub(1);
+            if (!self->stopped_) {
+                self->callback_(port, !ec);
+                self->schedule_next();
+            }
+        });
     } catch (const std::exception&) {
         if (!completed->exchange(true)) {
             boost::system::error_code ignored;
             timer->cancel(ignored);
             socket->close(ignored);
             in_flight_.fetch_sub(1);
-
             if (!stopped_) {
                 callback_(port, false);
                 schedule_next();
