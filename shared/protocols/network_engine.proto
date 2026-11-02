@@ -1,0 +1,3 @@
+syntax = "proto3";
+package kravigil.network.v1;
+// Define versioned RPC contracts before implementing handlers.
