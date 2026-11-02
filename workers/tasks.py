@@ -12,22 +12,20 @@ from backend.services.normalization.adapters.nuclei import NucleiAdapter
 from backend.services.normalization.adapters.semgrep import SemgrepAdapter
 from backend.services.normalization.adapters.gitleaks import GitleaksAdapter
 from backend.services.normalization.adapters.trivy import TrivyAdapter
+from backend.services.normalization.adapters.cloud_scanner import CloudScannerAdapter
 from backend.services.correlation.correlation_engine import CorrelationEngine
 from backend.database.models.scan import Scan
 from backend.database.models.observation import Observation
 from backend.database.models.finding import Finding
 from backend.database.models.webhook import Webhook
 from backend.database.models.setting import TenantSetting
-from backend.database.models.schedule import ScheduledScan
-from backend.database.models.target import Target
-from backend.database.models.asset import Asset
-from backend.services.scheduler.cron_parser import CronParser
 from ai.gateway.ai_gateway import AIGateway
 from backend.services.reporting.report_orchestrator import ReportOrchestrator
 from backend.services.risk.risk_engine import RiskEngine
 from backend.services.notifications.webhook_dispatcher import WebhookDispatcher
 from backend.services.notifications.email_dispatcher import EmailDispatcher
 from backend.services.notifications.slack_dispatcher import SlackDispatcher
+from backend.services.notifications.siem_dispatcher import SIEMDispatcher
 from backend.api.websockets.manager import manager
 
 logger = logging.getLogger(__name__)
@@ -71,67 +69,55 @@ def trigger_notifications(db, tenant_id: str, event_type: str, data: dict):
                 event_type=event_type,
                 data=data
             )
+
+        siem_setting = db.query(TenantSetting).filter(
+            TenantSetting.tenant_id == tenant_id,
+            TenantSetting.key == "siem_alerts"
+        ).first()
+        
+        if siem_setting and siem_setting.value.get("enabled"):
+            SIEMDispatcher.send_syslog(
+                siem_config=siem_setting.value,
+                event_type=event_type,
+                data=data
+            )
     except Exception as e:
         logger.error(f"Notification trigger failed: {e}")
 
-@celery_app.task(name="tasks.check_scheduled_scans")
-def check_scheduled_scans():
+@celery_app.task(bind=True, name="tasks.run_cloud_scan", max_retries=3, acks_late=True)
+def run_cloud_scan(self, tenant_id: str, scan_id: str, asset_id: str, provider: str):
     db = SessionLocal()
     try:
-        now = datetime.utcnow()
-        schedules = db.query(ScheduledScan).filter(
-            ScheduledScan.is_active == True,
-            ScheduledScan.next_run <= now
-        ).all()
+        db.execute(text("SELECT set_config('app.tenant_id', :tenant_id, true)"), {"tenant_id": str(tenant_id)})
+        scan = db.query(Scan).filter(Scan.id == scan_id).first()
+        if not scan: raise ValueError(f"Scan {scan_id} not found")
+
+        scan.status = "RUNNING"
+        scan.started_at = datetime.utcnow()
+        db.commit()
+
+        adapter = CloudScannerAdapter()
+        results = adapter.scan(provider)
+
+        observations = []
+        for res in results:
+            obs = Normalizer.from_cloud_result(uuid.UUID(tenant_id), uuid.UUID(scan_id), uuid.UUID(asset_id), res)
+            observations.append(obs)
+
+        if observations:
+            db.bulk_save_objects(observations)
+            db.commit()
+
+        scan.status = "COMPLETED"
+        scan.finished_at = datetime.utcnow()
+        db.commit()
         
-        for schedule in schedules:
-            db.execute(text("SELECT set_config('app.tenant_id', :tenant_id, true)"), {"tenant_id": str(schedule.tenant_id)})
-            
-            target = db.query(Target).filter(Target.id == schedule.target_id).first()
-            asset = db.query(Asset).filter(Asset.target_id == target.id).first()
-            
-            if not asset:
-                asset = Asset(
-                    tenant_id=schedule.tenant_id,
-                    target_id=target.id,
-                    ip_address=target.ip_address or target.domain
-                )
-                db.add(asset)
-                db.commit()
-                db.refresh(asset)
-                
-            scan = Scan(
-                tenant_id=schedule.tenant_id,
-                target_id=target.id,
-                asset_id=asset.id,
-                status="PENDING",
-                scan_type=schedule.scan_type
-            )
-            db.add(scan)
-            db.commit()
-            db.refresh(scan)
-            
-            if schedule.scan_type == "NETWORK":
-                run_network_scan.delay(
-                    tenant_id=str(schedule.tenant_id),
-                    scan_id=str(scan.id),
-                    asset_id=str(asset.id),
-                    target_ip=asset.ip_address,
-                    ports=schedule.parameters.get("ports", [22, 80, 443])
-                )
-            elif schedule.scan_type == "WEB":
-                run_web_scan.delay(
-                    tenant_id=str(schedule.tenant_id),
-                    scan_id=str(scan.id),
-                    asset_id=str(asset.id),
-                    target_url=target.domain or f"http://{target.ip_address}"
-                )
-                
-            schedule.last_run = now
-            schedule.next_run = CronParser.get_next_run(schedule.cron_expression, now)
-            db.commit()
-            
+        trigger_notifications(db, tenant_id, "scan.completed", {"scan_id": scan_id, "type": "cloud"})
+        correlate_findings.delay(tenant_id, scan_id, asset_id)
+        return {"status": "completed", "scan_id": scan_id, "findings": len(results)}
     except Exception as e:
-        logger.error(f"Scheduled scans check failed: {e}")
+        db.rollback()
+        logger.error(f"Cloud scan {scan_id} failed: {str(e)}", exc_info=True)
+        raise self.retry(exc=e, countdown=60, max_retries=3)
     finally:
         db.close()
