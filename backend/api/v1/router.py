@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from backend.api.v1.endpoints import (
-    auth, targets, assets, scans, findings, ai_analysis,
-    evidence, reports, risk, agents, webhooks, api_keys, settings,
+    auth, targets, assets, scans, findings, ai_analysis, 
+    evidence, reports, risk, agents, webhooks, api_keys, settings, 
     agent_tasks, system
 )
 
