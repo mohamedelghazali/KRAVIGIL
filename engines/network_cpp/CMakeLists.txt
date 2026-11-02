@@ -13,7 +13,6 @@ find_package(Threads REQUIRED)
 set(PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../shared/protocols)
 set(PROTO_FILE ${PROTO_DIR}/network_engine.proto)
 set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
-
 file(MAKE_DIRECTORY ${GENERATED_DIR})
 
 set(PROTO_SRCS
