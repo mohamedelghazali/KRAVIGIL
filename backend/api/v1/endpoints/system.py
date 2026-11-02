@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from backend.database.session import get_db
 from backend.core.config import get_settings
+from backend.core.version import __version__, __build__, __codename__
 from backend.services.evidence.minio_client import MinIOClient
 import redis
 import logging
@@ -38,3 +39,11 @@ def system_health(db: Session = Depends(get_db)):
 
     overall = "ok" if all(v == "ok" for v in status.values()) else "degraded"
     return {"status": overall, "components": status}
+
+@router.get("/version")
+def system_version():
+    return {
+        "version": __version__,
+        "build": __build__,
+        "codename": __codename__
+    }
