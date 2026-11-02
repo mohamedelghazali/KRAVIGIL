@@ -22,3 +22,5 @@ opentelemetry-instrumentation-fastapi==0.42b0
 opentelemetry-instrumentation-sqlalchemy==0.42b0
 opentelemetry-instrumentation-redis==0.42b0
 prometheus-fastapi-instrumentator==6.1.0
+croniter==2.0.1
+slack-sdk==3.26.1
