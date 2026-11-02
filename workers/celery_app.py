@@ -1,13 +1,17 @@
+import logging
+
 from celery import Celery
+
 from backend.core.config import get_settings
 
+logger = logging.getLogger(__name__)
 settings = get_settings()
 
 celery_app = Celery(
     "kravigil_workers",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
-    include=["workers.tasks"]
+    include=["workers.tasks"],
 )
 
 celery_app.conf.update(
@@ -17,5 +21,21 @@ celery_app.conf.update(
     timezone="UTC",
     enable_utc=True,
     task_track_started=True,
-    worker_max_tasks_per_child=100
+    task_time_limit=7200,
+    task_soft_time_limit=7000,
+    worker_max_tasks_per_child=100,
+    worker_prefetch_multiplier=1,
+    task_acks_late=True,
+    task_reject_on_worker_lost=True,
+    broker_connection_retry_on_startup=True,
+    result_expires=86400,
+    task_publish_retry=True,
+    task_publish_retry_policy={
+        "max_retries": 3,
+        "interval_start": 0,
+        "interval_step": 0.2,
+        "interval_max": 1,
+    },
 )
+
+celery_app.autodiscover_tasks(["workers"])
