@@ -3,18 +3,19 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from backend.core.config import get_settings
 from backend.database.session import get_db
 from backend.database.models.user import User
+from backend.database.models.api_key import APIKey
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 class SecurityService:
     def __init__(self):
@@ -75,7 +76,27 @@ class SecurityService:
 
 security_service = SecurityService()
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+def get_current_user(request: Request, token: Optional[str] = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+    api_key_header = request.headers.get("X-API-Key")
+    if api_key_header:
+        import hashlib
+        key_hash = hashlib.sha256(api_key_header.encode()).hexdigest()
+        api_key = db.query(APIKey).filter(APIKey.key_hash == key_hash, APIKey.is_active == True).first()
+        
+        if not api_key:
+            raise HTTPException(status_code=401, detail="Invalid API Key")
+            
+        if api_key.expires_at and api_key.expires_at < datetime.utcnow():
+            raise HTTPException(status_code=401, detail="API Key expired")
+            
+        user = db.query(User).filter(User.tenant_id == api_key.tenant_id).first()
+        if not user:
+            raise HTTPException(status_code=401, detail="User associated with API Key not found")
+        return user
+
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
     payload = security_service.decode_token(token)
     user_id: str = payload.get("sub")
     tenant_id: str = payload.get("tenant")
