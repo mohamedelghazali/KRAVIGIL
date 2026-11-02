@@ -1,26 +1,45 @@
 <template>
   <div id="app">
     <nav v-if="authStore.isAuthenticated">
-      <router-link to="/">Dashboard</router-link>
-      <router-link to="/scans">Scans</router-link>
-      <router-link to="/findings">Findings</router-link>
-      <router-link to="/reports">Reports</router-link>
-      <button @click="authStore.logout">Logout</button>
+      <div class="nav-brand">KRAVIGIL</div>
+      <div class="nav-links">
+        <router-link to="/">Dashboard</router-link>
+        <router-link to="/targets">Targets</router-link>
+        <router-link to="/scans">Scans</router-link>
+        <router-link to="/findings">Findings</router-link>
+        <router-link to="/reports">Reports</router-link>
+      </div>
+      <button @click="handleLogout" class="logout-btn">Logout</button>
     </nav>
-    <main><router-view /></main>
+    <main :class="{ 'full-width': !authStore.isAuthenticated }">
+      <router-view />
+    </main>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useRouter } from 'vue-router'
 import { useAuthStore } from './stores/auth'
+
 const authStore = useAuthStore()
+const router = useRouter()
+
+function handleLogout() {
+  authStore.logout()
+  router.push('/login')
+}
 </script>
 
 <style>
-#app { font-family: Arial, sans-serif; margin: 0; padding: 0; }
-nav { background: #333; padding: 1rem; display: flex; gap: 1rem; }
-nav a { color: white; text-decoration: none; }
-nav a:hover { text-decoration: underline; }
-nav button { margin-left: auto; background: #d9534f; color: white; border: 0; padding: .5rem 1rem; cursor: pointer; }
-main { padding: 2rem; }
+body { margin: 0; background-color: #f8f9fa; font-family: 'Inter', -apple-system, sans-serif; color: #333; }
+#app { display: flex; flex-direction: column; min-height: 100vh; }
+nav { background: #1a1a2e; padding: 0 2rem; height: 60px; display: flex; align-items: center; justify-content: space-between; color: white; }
+.nav-brand { font-weight: bold; font-size: 1.2rem; letter-spacing: 1px; }
+.nav-links { display: flex; gap: 1.5rem; }
+nav a { color: #a0a0b8; text-decoration: none; font-size: 0.95rem; transition: color 0.2s; }
+nav a:hover, nav a.router-link-active { color: white; }
+.logout-btn { background: transparent; border: 1px solid #a0a0b8; color: #a0a0b8; padding: 0.4rem 1rem; border-radius: 4px; cursor: pointer; transition: all 0.2s; }
+.logout-btn:hover { background: #d9534f; border-color: #d9534f; color: white; }
+main { flex: 1; padding: 2rem; max-width: 1400px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+main.full-width { display: flex; justify-content: center; align-items: center; }
 </style>
