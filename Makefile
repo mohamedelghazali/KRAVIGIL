@@ -1,4 +1,4 @@
-.PHONY: setup build up down logs test lint format clean migrate seed
+.PHONY: setup build up down logs test lint format clean migrate seed deploy-prod
 
 setup:
 	python3 -m venv .venv
@@ -36,3 +36,6 @@ migrate:
 
 seed:
 	python scripts/seed_db.py
+
+deploy-prod:
+	./scripts/deploy_prod.sh
