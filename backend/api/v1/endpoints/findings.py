@@ -1,50 +1,109 @@
-import uuid
-from datetime import datetime
-from typing import List, Optional
-
-from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, ConfigDict
+from fastapi import APIRouter, Depends, Query, HTTPException, status, Request
 from sqlalchemy.orm import Session
-
-from backend.core.security import get_current_user
+from typing import List
 from backend.database.models.finding import Finding
 from backend.database.models.user import User
 from backend.database.session import get_tenant_db
-
+from backend.core.security import get_current_user, require_role
+from backend.core.audit_service import AuditService
+from pydantic import BaseModel
+import uuid
+from datetime import datetime
 
 router = APIRouter()
-
 
 class FindingResponse(BaseModel):
     id: uuid.UUID
     title: str
     vulnerability_key: str
-    severity: Optional[str] = None
-    confidence: Optional[str] = None
-    validation_status: Optional[str] = None
+    severity: str
+    confidence: str
+    validation_status: str
+    workflow_status: str
     first_seen: datetime
     last_seen: datetime
 
-    model_config = ConfigDict(from_attributes=True)
+    class Config:
+        from_attributes = True
 
+class FindingUpdate(BaseModel):
+    workflow_status: str | None = None
+    validation_status: str | None = None
+    disposition: str | None = None
 
 @router.get("/", response_model=List[FindingResponse])
 def list_findings(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
-    severity: Optional[str] = Query(None),
+    severity: str = Query(None),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_tenant_db),
+    db: Session = Depends(get_tenant_db)
 ):
-    query = db.query(Finding).filter(
-        Finding.tenant_id == current_user.organization_id
-    )
+    query = db.query(Finding)
     if severity:
         query = query.filter(Finding.severity == severity)
+    return query.offset(skip).limit(limit).all()
 
-    return (
-        query.order_by(Finding.last_seen.desc())
-        .offset(skip)
-        .limit(limit)
-        .all()
+@router.get("/{finding_id}", response_model=FindingResponse)
+def get_finding(
+    finding_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_tenant_db)
+):
+    finding = db.query(Finding).filter(Finding.id == finding_id).first()
+    if not finding:
+        raise HTTPException(status_code=404, detail="Finding not found")
+    return finding
+
+@router.put("/{finding_id}", response_model=FindingResponse)
+def update_finding(
+    finding_id: uuid.UUID,
+    finding_in: FindingUpdate,
+    request: Request,
+    current_user: User = Depends(require_role(["admin", "analyst"])),
+    db: Session = Depends(get_tenant_db)
+):
+    finding = db.query(Finding).filter(Finding.id == finding_id).first()
+    if not finding:
+        raise HTTPException(status_code=404, detail="Finding not found")
+
+    if finding_in.workflow_status is not None: finding.workflow_status = finding_in.workflow_status
+    if finding_in.validation_status is not None: finding.validation_status = finding_in.validation_status
+    if finding_in.disposition is not None: finding.disposition = finding_in.disposition
+
+    db.commit()
+    db.refresh(finding)
+
+    AuditService.log_event(
+        action="FINDING_UPDATED",
+        resource_type="finding",
+        resource_id=str(finding.id),
+        tenant_id=current_user.tenant_id,
+        actor_id=current_user.id,
+        source_ip=request.client.host if request.client else "unknown",
+        details=finding_in.model_dump(exclude_unset=True)
+    )
+    return finding
+
+@router.delete("/{finding_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_finding(
+    finding_id: uuid.UUID,
+    request: Request,
+    current_user: User = Depends(require_role(["admin"])),
+    db: Session = Depends(get_tenant_db)
+):
+    finding = db.query(Finding).filter(Finding.id == finding_id).first()
+    if not finding:
+        raise HTTPException(status_code=404, detail="Finding not found")
+
+    db.delete(finding)
+    db.commit()
+
+    AuditService.log_event(
+        action="FINDING_DELETED",
+        resource_type="finding",
+        resource_id=str(finding_id),
+        tenant_id=current_user.tenant_id,
+        actor_id=current_user.id,
+        source_ip=request.client.host if request.client else "unknown"
     )
