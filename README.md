@@ -1,89 +1,68 @@
-# KRAVIGIL
+# KRAVIGIL Core
 
-**Enterprise Offensive Security & Vulnerability Intelligence Platform**
+Enterprise Vulnerability Assessment & Security Intelligence Platform.
 
-KRAVIGIL is a modular platform scaffold for authorized security assessment, asset
-visibility, vulnerability evidence management, finding correlation, risk analysis,
-and security reporting.
+## Overview
 
-> **Project status:** architecture and repository scaffold. Scanner execution,
-> vulnerability validation, agent enrollment, AI providers, and production
-> security controls are not yet implemented. Do not treat the current scaffold
-> as a production-ready penetration-testing platform.
+KRAVIGIL is a modular, distributed vulnerability management platform designed for high accuracy, evidence-based validation, and enterprise security.
 
-## Architecture at a glance
+## Features
 
-- **Backend:** FastAPI, Pydantic 2, SQLAlchemy 2, PostgreSQL.
-- **Workers:** Celery with Redis for asynchronous jobs.
-- **Engines:** isolated network and web scanning components, with extension
-  points for API, SAST, DAST, cloud, container, dependency, and secret analysis.
-- **AI:** provider gateway designed for local-first analysis and optional Gemini
-  reasoning subject to data policy and human oversight.
-- **Frontend:** Vue 3, TypeScript, Pinia, and Vue Router.
-- **Evidence:** metadata in PostgreSQL and a planned object-storage integration.
-- **Security:** explicit target authorization, tenant isolation, auditability,
-  bounded execution, and evidence validation are design requirements.
+- **Network Scanner**: C++ engine using Boost.Asio and gRPC for high-throughput port scanning.
+- **Web & Code Scanners**: Integration with Nuclei and Semgrep for comprehensive web and SAST coverage.
+- **Container & Secrets Scanning**: Trivy and Gitleaks adapters for modern supply chain security.
+- **Evidence-Based Validation**: SHA-256 hashed evidence storage in MinIO with immutable retention.
+- **AI Intelligence**: Gemini API integration with prompt injection protection and output validation.
+- **Risk Engine**: Dynamic risk scoring using CVSS, EPSS, and CISA KEV data.
+- **Multi-Tenancy**: PostgreSQL Row-Level Security (RLS) for strict data isolation.
+- **Observability**: OpenTelemetry tracing and Prometheus metrics.
 
-## Repository layout
+## Architecture
 
-- `backend/` — API, domain services, persistence, and integrations.
-- `workers/` — orchestration and asynchronous processing.
-- `engines/` — scanning engine implementations and extension points.
-- `ai/` — AI gateway, providers, intelligence modules, and evaluation.
-- `agents/` — future remote-agent lifecycle and identity.
-- `shared/` — versioned contracts, enums, and protocol definitions.
-- `infrastructure/` — deployment, network, isolation, storage, and monitoring.
-- `frontend/` — Vue application.
-- `tests/` — unit, integration, security, performance, and regression tests.
-- `docs/` — architecture, security, engine, operations, and testing documents.
-
-## Local development
-
-Requirements: Python 3.12+, Node.js 20+, and npm.
-
-### Backend
-
-```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-pip install -e ".[dev]"
-uvicorn backend.main:app --reload
+```text
+[ Frontend (Vue 3) ] <---> [ Nginx ] <---> [ FastAPI Backend ]
+                                                |
+                                       [ Celery + Redis ]
+                                                |
+                         +----------------------+----------------------+
+                         |                      |                      |
+                 [ C++ Network Engine ]   [ Web Scanners ]     [ AI Gateway ]
+                         |                      |                      |
+                 [ Target Networks ]     [ Target URLs ]      [ Gemini API ]
+                                                |
+                                       [ PostgreSQL + MinIO ]
 ```
 
-The API health endpoint is `GET /health`. Database and Redis services must be
-configured before enabling features that depend on them.
+## Quick Start
 
-### Frontend
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/your-org/kravigil.git
+   cd kravigil
+   ```
 
-```powershell
-cd frontend
-npm install
-npm run dev
-```
+2. Configure environment:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your secure secrets
+   ```
 
-Set `VITE_API_BASE_URL` to the backend API base URL when a proxy is not used.
+3. Build and run:
+   ```bash
+   make build
+   make up
+   ```
 
-### Tests and lint
+4. Access the dashboard at `http://localhost`.
+   Default admin credentials will be generated on first boot (check logs).
 
-```powershell
-pytest -q
-ruff check backend workers engines ai agents shared tests
-```
+## Security
 
-## Security boundaries
-
-- Only assess targets for which the operator has explicit authorization.
-- Detection is not confirmation; findings require evidence and independent
-  validation before being marked confirmed.
-- AI output is advisory and must not grant authorization, execute arbitrary
-  commands, or independently confirm vulnerabilities.
-- Never commit API keys, database credentials, certificates, or real customer
-  evidence. Use environment secrets or a dedicated secret manager.
-- Scanner workers must run with least privilege, restricted egress, and resource
-  limits before any active scanning capability is enabled.
+- **Scope Guard**: Strict validation to prevent SSRF and unauthorized scanning.
+- **Zero Trust**: mTLS and isolated execution planes for all engines.
+- **Immutable Evidence**: WORM (Write Once Read Many) storage policies for compliance.
+- **API Keys**: Scoped API keys with expiration for machine-to-machine access.
 
 ## License
 
-No open-source license has been selected yet. Unless a separate license is
-added, all rights remain reserved by the copyright holder.
+Proprietary. All rights reserved.
