@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  nginx:
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+
+  backend:
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+    environment:
+      - DEBUG=false
+
+  worker:
+    deploy:
+      replicas: 5
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+
+  network_engine:
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+
+  db:
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
