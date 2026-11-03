@@ -4,7 +4,8 @@ from typing import List
 from backend.database.models.finding import Finding
 from backend.database.models.user import User
 from backend.database.tenant import get_tenant_db
-from backend.core.security import get_current_user, require_role
+from backend.core.security import get_current_user, require_role, require_permission
+from backend.security.rbac import Permission
 from backend.core.audit_service import AuditService
 from pydantic import BaseModel
 import uuid
@@ -60,7 +61,7 @@ def update_finding(
     finding_id: uuid.UUID,
     finding_in: FindingUpdate,
     request: Request,
-    current_user: User = Depends(require_role(["admin", "analyst"])),
+    current_user: User = Depends(require_permission(Permission.FINDING_UPDATE)),
     db: Session = Depends(get_tenant_db)
 ):
     finding = db.query(Finding).filter(Finding.id == finding_id).first()
@@ -89,7 +90,7 @@ def update_finding(
 def delete_finding(
     finding_id: uuid.UUID,
     request: Request,
-    current_user: User = Depends(require_role(["admin"])),
+    current_user: User = Depends(require_permission(Permission.FINDING_DELETE)),
     db: Session = Depends(get_tenant_db)
 ):
     finding = db.query(Finding).filter(Finding.id == finding_id).first()
