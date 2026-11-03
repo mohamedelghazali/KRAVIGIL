@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Float, Boolean, DateTime, ForeignKey, Index
+from sqlalchemy import JSON, Column, String, Float, Boolean, DateTime, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from backend.database.models.base import Base
@@ -23,7 +23,7 @@ class RiskAssessment(Base):
     
     scoring_model_version = Column(String(20), default="1.0")
     policy_version = Column(String(20), default="1.0")
-    explanation = Column(JSONB, default=dict)
+    explanation = Column(JSON().with_variant(JSONB, "postgresql"), default=dict)
     
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
