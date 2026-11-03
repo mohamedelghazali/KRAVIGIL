@@ -46,7 +46,6 @@ RUN apt-get update && apt-get install -y \
     libboost-system1.74.0 \
     libprotobuf23 \
     libgrpc++1 \
-    libgrpc++-reflection1 \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
