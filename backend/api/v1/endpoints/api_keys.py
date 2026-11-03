@@ -9,13 +9,21 @@ from backend.database.tenant import get_tenant_db
 from backend.core.security import require_role
 from backend.core.exceptions import KravigilException
 from backend.core.audit_service import AuditService
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 router = APIRouter()
 
 class APIKeyCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     expires_in_days: int = Field(default=365, ge=0, le=3650)
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("API key name cannot be blank")
+        return normalized
 
 class APIKeyCreateResponse(BaseModel):
     id: uuid.UUID
