@@ -522,7 +522,10 @@ def check_scheduled_scans():
                             pinned_ip, params.get("ports", [22, 80, 443, 8080]),
                         )
                     elif scan_type == "WEB":
-                        target_url = target_domain or pinned_ip
+                        target_host = target_domain or pinned_ip
+                        if not target_domain and ":" in target_host and not target_host.startswith("["):
+                            target_host = f"[{target_host}]"
+                        target_url = target_host
                         if not str(target_url).startswith(("http://", "https://")):
                             target_url = f"https://{target_url}"
                         task = run_web_scan.delay(
