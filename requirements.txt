@@ -18,9 +18,8 @@ google-genai==2.34.0
 alembic==1.12.1
 opentelemetry-api==1.45.1
 opentelemetry-sdk==1.45.1
-opentelemetry-instrumentation-fastapi==0.66b2
+opentelemetry-instrumentation-fastapi==0.66b1
 opentelemetry-instrumentation-sqlalchemy==0.66b1
-opentelemetry-instrumentation-redis==0.66b0
 prometheus-fastapi-instrumentator==6.1.0
 croniter==2.0.1
 slack-sdk==3.26.1
