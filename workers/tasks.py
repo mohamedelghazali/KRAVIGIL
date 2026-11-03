@@ -146,7 +146,7 @@ def run_cloud_scan(self, tenant_id: str, scan_id: str, asset_id: str, provider: 
         logger.error(f"Cloud scan {scan_id} failed: {str(e)}", exc_info=True)
         raise self.retry(exc=e, countdown=60, max_retries=3)
     finally:
-        db.close()
+        _close_worker_session(db)
 
 
 import json
@@ -207,7 +207,7 @@ def run_network_scan(self, tenant_id: str, scan_id: str, asset_id: str, target_i
         logger.exception("Network scan %s failed", scan_id)
         raise
     finally:
-        db.close()
+        _close_worker_session(db)
 
 
 @celery_app.task(bind=True, name="tasks.run_web_scan", acks_late=True)
@@ -249,7 +249,7 @@ def run_web_scan(self, tenant_id: str, scan_id: str, asset_id: str, target_url: 
         logger.exception("Web scan %s failed", scan_id)
         raise
     finally:
-        db.close()
+        _close_worker_session(db)
 
 
 @celery_app.task(bind=True, name="tasks.run_sast_scan", acks_late=True)
@@ -301,7 +301,7 @@ def run_sast_scan(self, tenant_id: str, scan_id: str, asset_id: str, code_path: 
         logger.exception("SAST scan %s failed", scan_id)
         raise
     finally:
-        db.close()
+        _close_worker_session(db)
 
 
 @celery_app.task(name="tasks.correlate_findings", acks_late=True)
@@ -359,25 +359,25 @@ def correlate_findings(tenant_id: str, scan_id: str, asset_id: str):
             created += 1
         return {"scan_id": scan_id, "observations_correlated": created}
     finally:
-        db.close()
+        _close_worker_session(db)
 
 
 @celery_app.task(name="tasks.generate_report", acks_late=True)
 def generate_report(tenant_id: str, report_id: str):
     db = SessionLocal()
     try:
-        db.execute(text("SELECT set_config('app.tenant_id', :tenant_id, true)"), {"tenant_id": str(tenant_id)})
+        set_worker_tenant(db, tenant_id)
         ReportOrchestrator(db).generate_report(uuid.UUID(report_id), uuid.UUID(tenant_id))
         return {"status": "completed", "report_id": report_id}
     finally:
-        db.close()
+        _close_worker_session(db)
 
 
 @celery_app.task(name="tasks.analyze_finding_with_ai", acks_late=True)
 def analyze_finding_with_ai(tenant_id: str, finding_id: str):
     db = SessionLocal()
     try:
-        db.execute(text("SELECT set_config('app.tenant_id', :tenant_id, true)"), {"tenant_id": str(tenant_id)})
+        set_worker_tenant(db, tenant_id)
         finding = db.query(Finding).filter(
             Finding.id == uuid.UUID(str(finding_id)),
             Finding.tenant_id == tenant_uuid,
@@ -398,7 +398,7 @@ def analyze_finding_with_ai(tenant_id: str, finding_id: str):
         ]
         evidence_text = json.dumps(evidence, ensure_ascii=False, default=str)
     finally:
-        db.close()
+        _close_worker_session(db)
 
     gateway = AIGateway()
     return asyncio.run(gateway.process_finding_analysis(
@@ -489,4 +489,4 @@ def check_scheduled_scans():
         logger.exception("Scheduled scan dispatch failed")
         raise
     finally:
-        db.close()
+        _close_worker_session(db)
