@@ -98,7 +98,7 @@ jobs:
         DATABASE_URL: postgresql://kravigil_admin:test_password@localhost:5432/kravigil_test
         RLS_DATABASE_URL: postgresql://kravigil_app:test_app_password@localhost:5432/kravigil_test
         REDIS_URL: redis://localhost:6379/0
-        SECRET_KEY: test_secret_key_for_ci
+        SECRET_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
         PYTHONPATH: .:shared/protocols
         MINIO_ENDPOINT: localhost:9090
         MINIO_ACCESS_KEY: foo
