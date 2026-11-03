@@ -11,7 +11,7 @@ from backend.core.security import require_role, get_current_user
 from backend.core.exceptions import KravigilException
 from backend.services.scheduler.cron_parser import CronParser
 from backend.core.audit_service import AuditService
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
