@@ -13,7 +13,7 @@ class Normalizer:
                 return Observation(
                     id=uuid.uuid4(), tenant_id=tenant_id, scan_id=scan_id, asset_id=asset_id,
                     engine_id="network_cpp", event_type=event.event_type,
-                    raw_data={"target_ip": event.target_ip, "port": event.port, "status": event.status, "details": event.details}
+                    raw_data={"target_ip": event.target_ip, "port": event.port, "status": event.status}
                 )
         except Exception as e:
             logger.error(f"Normalization failed for network event: {e}")
