@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from backend.database.models.webhook import Webhook
 from backend.database.models.user import User
-from backend.database.session import get_tenant_db
+from backend.database.tenant import get_tenant_db
 from backend.core.security import require_role, get_current_user
 from backend.core.exceptions import KravigilException
 from pydantic import BaseModel, HttpUrl
