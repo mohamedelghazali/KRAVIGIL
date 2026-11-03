@@ -60,7 +60,16 @@ def _init_scan(db: Session, tenant_id: uuid.UUID, target_id: uuid.UUID, scan_typ
     if not target.is_authorized: raise ScopeViolationException("Target is not authorized")
 
     guard = ScopeGuard(get_settings().ALLOWED_SCAN_CIDRS)
-    resolved_addresses = guard.validate_target(target.ip_address or target.domain)
+    # Validate every configured destination. When both fields are present,
+    # web scans use the domain while network scans use the IP; validating only
+    # the IP would leave the web-scan destination outside the checked scope.
+    resolved_addresses: list[str] = []
+    if target.ip_address:
+        resolved_addresses.extend(guard.validate_target(target.ip_address))
+    if target.domain:
+        resolved_addresses.extend(guard.validate_target(target.domain))
+    if not resolved_addresses:
+        raise ScopeViolationException("Target must include a resolvable IP address or domain")
     try:
         scan_ip = str(ipaddress.ip_address(target.ip_address)) if target.ip_address else resolved_addresses[0]
     except ValueError as exc:
