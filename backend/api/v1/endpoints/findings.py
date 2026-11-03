@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from backend.database.models.finding import Finding
 from backend.database.models.user import User
-from backend.database.session import get_tenant_db
+from backend.database.tenant import get_tenant_db
 from backend.core.security import get_current_user, require_role
 from backend.core.audit_service import AuditService
 from pydantic import BaseModel
