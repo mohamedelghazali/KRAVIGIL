@@ -142,7 +142,7 @@ def list_targets(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_tenant_db)
 ):
-    return db.query(Target).all()
+    return db.query(Target).filter(Target.tenant_id == current_user.tenant_id).all()
 
 @router.get("/{target_id}", response_model=TargetResponse)
 def get_target(
@@ -150,7 +150,7 @@ def get_target(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_tenant_db)
 ):
-    target = db.query(Target).filter(Target.id == target_id).first()
+    target = db.query(Target).filter(Target.id == target_id, Target.tenant_id == current_user.tenant_id).first()
     if not target:
         raise HTTPException(status_code=404, detail="Target not found")
     return target
@@ -163,7 +163,7 @@ def update_target(
     current_user: User = Depends(require_role(["admin", "analyst"])),
     db: Session = Depends(get_tenant_db)
 ):
-    target = db.query(Target).filter(Target.id == target_id).first()
+    target = db.query(Target).filter(Target.id == target_id, Target.tenant_id == current_user.tenant_id).first()
     if not target:
         raise HTTPException(status_code=404, detail="Target not found")
     if target_in.is_authorized is True and current_user.role != "admin":
@@ -205,7 +205,7 @@ def delete_target(
     current_user: User = Depends(require_role(["admin"])),
     db: Session = Depends(get_tenant_db)
 ):
-    target = db.query(Target).filter(Target.id == target_id).first()
+    target = db.query(Target).filter(Target.id == target_id, Target.tenant_id == current_user.tenant_id).first()
     if not target:
         raise HTTPException(status_code=404, detail="Target not found")
 
