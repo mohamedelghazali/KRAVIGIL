@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean, Index
+from sqlalchemy import JSON, Column, String, DateTime, ForeignKey, Boolean, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from backend.database.models.base import Base
 
@@ -12,7 +12,7 @@ class Webhook(Base):
     name = Column(String(255), nullable=False)
     url = Column(String(2048), nullable=False)
     secret = Column(String(255), nullable=False)
-    events = Column(JSONB, default=list)
+    events = Column(JSON().with_variant(JSONB, "postgresql"), default=list)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
