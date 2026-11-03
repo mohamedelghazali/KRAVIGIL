@@ -14,3 +14,5 @@ from backend.database.models.webhook import Webhook
 from backend.database.models.api_key import APIKey
 from backend.database.models.setting import TenantSetting
 from backend.database.models.session import UserSession, PasswordResetToken
+from backend.database.models.schedule import ScheduledScan
+from backend.database.models.ai_record import AIAnalysisRecord
