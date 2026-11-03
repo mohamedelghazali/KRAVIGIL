@@ -4,8 +4,7 @@ import logging
 import uuid
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from backend.database.session import SessionLocal, engine
-from backend.database.models.base import Base
+from backend.database.session import SessionLocal
 from backend.database.models.user import Organization, User
 from backend.core.security import security_service
 
@@ -13,7 +12,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def seed_database():
-    Base.metadata.create_all(bind=engine)
     db: Session = SessionLocal()
 
     try:
