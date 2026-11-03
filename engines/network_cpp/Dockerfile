@@ -31,13 +31,7 @@ RUN python3 -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. network_
 RUN protoc -I . --cpp_out=. --grpc_out=. --plugin=protoc-gen-grpc=`which grpc_cpp_plugin` network_engine.proto
 
 WORKDIR /app/engines/network_cpp
-RUN GRPC_CMAKE_CONFIG=$(find -L /usr -type f -name "gRPCConfig.cmake" -print -quit) && \
-    test -n "$GRPC_CMAKE_CONFIG" && \
-    GRPC_CMAKE_DIR=$(dirname "$GRPC_CMAKE_CONFIG") && \
-    echo "Found gRPC CMake config in: $GRPC_CMAKE_DIR" && \
-    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
-    -DgRPC_DIR="$GRPC_CMAKE_DIR" \
-    -DCMAKE_PREFIX_PATH="$GRPC_CMAKE_DIR" \
+RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
     && cmake --build build --parallel
 
 FROM ubuntu:22.04
