@@ -16,10 +16,24 @@ engine = create_engine(
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+def _reset_rls_context(db: Session) -> None:
+    if db.get_bind().dialect.name != "postgresql":
+        return
+    try:
+        db.rollback()
+        db.execute(
+            text("SELECT set_config('app.tenant_id', '', false), set_config('app.auth_lookup', 'false', false)")
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
 def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:
         yield db
     finally:
+        _reset_rls_context(db)
         db.close()
 
