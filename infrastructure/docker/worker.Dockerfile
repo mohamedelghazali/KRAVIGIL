@@ -9,12 +9,14 @@ RUN apt-get update && apt-get install -y \
     unzip \
     && rm -rf /var/lib/apt/lists/*
 
-RUN wget https://github.com/projectdiscovery/nuclei/releases/download/v3.1.0/nuclei_3.1.0_linux_amd64.zip \
+RUN wget https://github.com/projectdiscovery/nuclei/releases/download/v3.11.1/nuclei_3.11.1_linux_amd64.zip \
     && unzip nuclei_3.1.0_linux_amd64.zip -d /usr/local/bin/ \
     && rm nuclei_3.1.0_linux_amd64.zip \
     && chmod +x /usr/local/bin/nuclei
 
-RUN pip install --no-cache-dir semgrep==1.53.0
+RUN python -m venv /opt/semgrep \
+    && /opt/semgrep/bin/pip install --no-cache-dir semgrep==1.183.0 \
+    && ln -s /opt/semgrep/bin/semgrep /usr/local/bin/semgrep
 
 # Keep Prowler's large provider SDK dependency graph isolated from the API/worker runtime.
 RUN python -m venv /opt/prowler \
