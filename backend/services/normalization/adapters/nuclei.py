@@ -14,7 +14,8 @@ class NucleiAdapter(BaseEngineAdapter):
             "-u", target_url,
             "-json",
             "-silent",
-            "-t", templates,
+            "-tags", templates,
+            "-disable-redirects",
             "-rl", "150",
             "-c", "25"
         ]
