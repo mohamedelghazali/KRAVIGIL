@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, ForeignKey, Integer, Text, Index
+from sqlalchemy import JSON, Column, String, DateTime, ForeignKey, Integer, Text, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from backend.database.models.base import Base
 
@@ -14,7 +14,7 @@ class AIAnalysisRecord(Base):
     prompt_tokens = Column(Integer, default=0, nullable=False)
     completion_tokens = Column(Integer, default=0, nullable=False)
     status = Column(String(50), nullable=False)
-    response_raw = Column(JSONB)
+    response_raw = Column(JSON().with_variant(JSONB, "postgresql"))
     error_message = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     __table_args__ = (Index('ix_ai_records_tenant_finding', 'tenant_id', 'finding_id'),)
