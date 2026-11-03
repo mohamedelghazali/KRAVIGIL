@@ -24,6 +24,12 @@ class ScheduleCreate(BaseModel):
     cron_expression: str
     parameters: dict
 
+class ScheduleUpdate(BaseModel):
+    name: str | None = None
+    cron_expression: str | None = None
+    parameters: dict | None = None
+    is_active: bool | None = None
+
 class ScheduleResponse(BaseModel):
     id: uuid.UUID
     target_id: uuid.UUID
@@ -46,9 +52,7 @@ def create_schedule(
         target = db.query(Target).filter(Target.id == schedule_in.target_id).first()
         if not target:
             raise HTTPException(status_code=404, detail="Target not found")
-            
         next_run = CronParser.get_next_run(schedule_in.cron_expression)
-        
         schedule = ScheduledScan(
             tenant_id=current_user.tenant_id,
             target_id=schedule_in.target_id,
@@ -61,7 +65,6 @@ def create_schedule(
         db.add(schedule)
         db.commit()
         db.refresh(schedule)
-
         AuditService.log_event(
             action="SCHEDULE_CREATED",
             resource_type="schedule",
@@ -83,6 +86,29 @@ def list_schedules(
 ):
     return db.query(ScheduledScan).all()
 
+@router.put("/{schedule_id}", response_model=ScheduleResponse)
+def update_schedule(
+    schedule_id: uuid.UUID,
+    schedule_in: ScheduleUpdate,
+    current_user: User = Depends(require_role(["admin", "analyst"])),
+    db: Session = Depends(get_tenant_db)
+):
+    schedule = db.query(ScheduledScan).filter(ScheduledScan.id == schedule_id).first()
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    if schedule_in.name is not None:
+        schedule.name = schedule_in.name
+    if schedule_in.cron_expression is not None:
+        schedule.cron_expression = schedule_in.cron_expression
+        schedule.next_run = CronParser.get_next_run(schedule_in.cron_expression)
+    if schedule_in.parameters is not None:
+        schedule.parameters = schedule_in.parameters
+    if schedule_in.is_active is not None:
+        schedule.is_active = schedule_in.is_active
+    db.commit()
+    db.refresh(schedule)
+    return schedule
+
 @router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_schedule(
     schedule_id: uuid.UUID,
@@ -92,10 +118,8 @@ def delete_schedule(
     schedule = db.query(ScheduledScan).filter(ScheduledScan.id == schedule_id).first()
     if not schedule:
         raise HTTPException(status_code=404, detail="Schedule not found")
-        
     db.delete(schedule)
     db.commit()
-    
     AuditService.log_event(
         action="SCHEDULE_DELETED",
         resource_type="schedule",
