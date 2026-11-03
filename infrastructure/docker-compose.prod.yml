@@ -43,6 +43,11 @@ services:
       - target-miniodata:/data
     networks:
       - data_plane
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
 
   network_engine:
     restart: always
