@@ -27,6 +27,8 @@ docker run --rm \
       echo "=== $BUCKET ==="
       mc replicate ls "source/$BUCKET"
       mc replicate status "source/$BUCKET"
+      mc ilm rule ls --json "source/$BUCKET"
+      mc ilm rule ls --json "target/$BUCKET"
       mc ls --recursive --summarize "source/$BUCKET" | tail -n 1
     done
   '
