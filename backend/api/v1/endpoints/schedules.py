@@ -49,7 +49,7 @@ def create_schedule(
     db: Session = Depends(get_tenant_db)
 ):
     try:
-        target = db.query(Target).filter(Target.id == schedule_in.target_id).first()
+        target = db.query(Target).filter(Target.id == schedule_in.target_id, Target.tenant_id == current_user.tenant_id).first()
         if not target:
             raise HTTPException(status_code=404, detail="Target not found")
         next_run = CronParser.get_next_run(schedule_in.cron_expression)
@@ -84,7 +84,7 @@ def list_schedules(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_tenant_db)
 ):
-    return db.query(ScheduledScan).all()
+    return db.query(ScheduledScan).filter(ScheduledScan.tenant_id == current_user.tenant_id).all()
 
 @router.put("/{schedule_id}", response_model=ScheduleResponse)
 def update_schedule(
@@ -93,7 +93,7 @@ def update_schedule(
     current_user: User = Depends(require_role(["admin", "analyst"])),
     db: Session = Depends(get_tenant_db)
 ):
-    schedule = db.query(ScheduledScan).filter(ScheduledScan.id == schedule_id).first()
+    schedule = db.query(ScheduledScan).filter(ScheduledScan.id == schedule_id, ScheduledScan.tenant_id == current_user.tenant_id).first()
     if not schedule:
         raise HTTPException(status_code=404, detail="Schedule not found")
     if schedule_in.name is not None:
