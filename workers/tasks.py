@@ -41,12 +41,13 @@ def broadcast_ws(tenant_id: str, message: dict):
 
 def trigger_notifications(db, tenant_id: str, event_type: str, data: dict):
     try:
-        webhooks = db.query(Webhook).filter(Webhook.tenant_id == tenant_id).all()
+        tenant_uuid = uuid.UUID(str(tenant_id))
+        webhooks = db.query(Webhook).filter(Webhook.tenant_id == tenant_uuid).all()
         if webhooks:
             WebhookDispatcher.dispatch(webhooks, event_type, data)
             
         email_setting = db.query(TenantSetting).filter(
-            TenantSetting.tenant_id == tenant_id,
+            TenantSetting.tenant_id == tenant_uuid,
             TenantSetting.key == "email_alerts"
         ).first()
         
@@ -88,8 +89,11 @@ def trigger_notifications(db, tenant_id: str, event_type: str, data: dict):
 def run_cloud_scan(self, tenant_id: str, scan_id: str, asset_id: str, provider: str):
     db = SessionLocal()
     try:
-        db.execute(text("SELECT set_config('app.tenant_id', :tenant_id, true)"), {"tenant_id": str(tenant_id)})
-        scan = db.query(Scan).filter(Scan.id == scan_id).first()
+        tenant_uuid = uuid.UUID(str(tenant_id))
+        scan_uuid = uuid.UUID(str(scan_id))
+        asset_uuid = uuid.UUID(str(asset_id))
+        db.execute(text("SELECT set_config('app.tenant_id', :tenant_id, true)"), {"tenant_id": str(tenant_uuid)})
+        scan = db.query(Scan).filter(Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid).first()
         if not scan: raise ValueError(f"Scan {scan_id} not found")
 
         scan.status = "RUNNING"
@@ -101,7 +105,7 @@ def run_cloud_scan(self, tenant_id: str, scan_id: str, asset_id: str, provider: 
 
         observations = []
         for res in results:
-            obs = Normalizer.from_cloud_result(uuid.UUID(tenant_id), uuid.UUID(scan_id), uuid.UUID(asset_id), res)
+            obs = Normalizer.from_cloud_result(tenant_uuid, scan_uuid, asset_uuid, res)
             observations.append(obs)
 
         if observations:
@@ -138,7 +142,7 @@ def run_network_scan(self, tenant_id: str, scan_id: str, asset_id: str, target_i
     db = SessionLocal()
     try:
         db.execute(text("SELECT set_config('app.tenant_id', :tenant_id, true)"), {"tenant_id": str(tenant_id)})
-        scan = db.query(Scan).filter(Scan.id == scan_id, Scan.tenant_id == tenant_id).first()
+        scan = db.query(Scan).filter(Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid).first()
         if scan is None:
             raise ValueError("Scan not found for tenant")
         scan.status = "RUNNING"
@@ -154,7 +158,7 @@ def run_network_scan(self, tenant_id: str, scan_id: str, asset_id: str, target_i
                 timeout_ms=int(os.getenv("NETWORK_SCAN_TIMEOUT_MS", "1500")),
             ):
                 observation = Normalizer.from_network_event(
-                    uuid.UUID(tenant_id), uuid.UUID(scan_id), uuid.UUID(asset_id), event
+                    tenant_uuid, scan_uuid, asset_uuid, event
                 )
                 if observation is not None:
                     db.add(observation)
@@ -185,8 +189,11 @@ def run_network_scan(self, tenant_id: str, scan_id: str, asset_id: str, target_i
 def run_web_scan(self, tenant_id: str, scan_id: str, asset_id: str, target_url: str):
     db = SessionLocal()
     try:
-        db.execute(text("SELECT set_config('app.tenant_id', :tenant_id, true)"), {"tenant_id": str(tenant_id)})
-        scan = db.query(Scan).filter(Scan.id == scan_id, Scan.tenant_id == tenant_id).first()
+        tenant_uuid = uuid.UUID(str(tenant_id))
+        scan_uuid = uuid.UUID(str(scan_id))
+        asset_uuid = uuid.UUID(str(asset_id))
+        db.execute(text("SELECT set_config('app.tenant_id', :tenant_id, true)"), {"tenant_id": str(tenant_uuid)})
+        scan = db.query(Scan).filter(Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid).first()
         if scan is None:
             raise ValueError("Scan not found for tenant")
         scan.status = "RUNNING"
@@ -195,7 +202,7 @@ def run_web_scan(self, tenant_id: str, scan_id: str, asset_id: str, target_url: 
 
         results = NucleiAdapter().scan(target_url)
         observations = [
-            Normalizer.from_nuclei_result(uuid.UUID(tenant_id), uuid.UUID(scan_id), uuid.UUID(asset_id), item)
+            Normalizer.from_nuclei_result(tenant_uuid, scan_uuid, asset_uuid, item)
             for item in results
         ]
         if observations:
@@ -240,9 +247,9 @@ def run_sast_scan(self, tenant_id: str, scan_id: str, asset_id: str, code_path: 
         for item in results:
             observations.append(Observation(
                 id=uuid.uuid4(),
-                tenant_id=uuid.UUID(tenant_id),
-                scan_id=uuid.UUID(scan_id),
-                asset_id=uuid.UUID(asset_id),
+                tenant_id=tenant_uuid,
+                scan_id=scan_uuid,
+                asset_id=asset_uuid,
                 engine_id="semgrep",
                 event_type="SAST_FINDING",
                 raw_data=item,
@@ -275,8 +282,8 @@ def correlate_findings(tenant_id: str, scan_id: str, asset_id: str):
     try:
         db.execute(text("SELECT set_config('app.tenant_id', :tenant_id, true)"), {"tenant_id": str(tenant_id)})
         observations = db.query(Observation).filter(
-            Observation.tenant_id == tenant_id,
-            Observation.scan_id == scan_id,
+            Observation.tenant_id == uuid.UUID(str(tenant_id)),
+            Observation.scan_id == uuid.UUID(str(scan_id)),
         ).all()
         engine = CorrelationEngine(db)
         severity_order = {"CRITICAL": "critical", "HIGH": "high", "MEDIUM": "medium", "LOW": "low", "INFO": "info"}
@@ -344,8 +351,8 @@ def analyze_finding_with_ai(tenant_id: str, finding_id: str):
     try:
         db.execute(text("SELECT set_config('app.tenant_id', :tenant_id, true)"), {"tenant_id": str(tenant_id)})
         finding = db.query(Finding).filter(
-            Finding.id == finding_id,
-            Finding.tenant_id == tenant_id,
+            Finding.id == uuid.UUID(str(finding_id)),
+            Finding.tenant_id == uuid.UUID(str(tenant_id)),
         ).first()
         if finding is None:
             raise ValueError("Finding not found for tenant")
