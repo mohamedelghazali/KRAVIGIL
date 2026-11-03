@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Index, String, UniqueConstraint
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from backend.database.models.base import Base
@@ -21,7 +21,7 @@ class ThreatIndicator(Base):
     indicator_value = Column(String(512), nullable=False)
     threat_type = Column(String(255), nullable=False, default="unknown")
     source = Column(String(100), nullable=False, default="alienvault_otx")
-    raw_data = Column(JSONB, nullable=False, default=dict)
+    raw_data = Column(JSON().with_variant(JSONB, "postgresql"), nullable=False, default=dict)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     __table_args__ = (
