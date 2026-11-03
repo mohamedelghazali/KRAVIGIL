@@ -21,6 +21,7 @@ class Settings(BaseSettings):
 
     ALLOWED_ORIGINS: list[str] = ["http://localhost", "http://localhost:5173"]
     ALLOWED_HOSTS: list[str] = ["localhost", "127.0.0.1"]
+    ALLOWED_SCAN_CIDRS: list[str] = []
 
     FRONTEND_URL: str = "http://localhost"
     SMTP_HOST: str | None = None
