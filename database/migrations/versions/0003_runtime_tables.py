@@ -106,6 +106,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.execute("DROP POLICY IF EXISTS auth_lookup_users ON users")
+    op.execute("DROP POLICY IF EXISTS auth_lookup_api_keys ON api_keys")
     op.drop_table("ai_analysis_records")
     op.drop_table("scheduled_scans")
     op.drop_table("password_reset_tokens")
