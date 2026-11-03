@@ -453,6 +453,8 @@ def check_scheduled_scans():
     now = datetime.utcnow()
     dispatched = 0
     try:
+        if db.get_bind().dialect.name == "postgresql":
+            db.execute(text("SELECT set_config('app.auth_lookup', 'true', true)"))
         tenant_ids = [row[0] for row in db.query(Organization.id).all()]
         db.rollback()
 
@@ -598,7 +600,10 @@ def sync_threat_intel():
     db = SessionLocal()
     inserted = 0
     try:
+        if db.get_bind().dialect.name == "postgresql":
+            db.execute(text("SELECT set_config('app.auth_lookup', 'true', true)"))
         organizations = db.query(Organization).all()
+        db.rollback()
         for organization in organizations:
             set_worker_tenant(db, organization.id)
             for pulse in pulses:
