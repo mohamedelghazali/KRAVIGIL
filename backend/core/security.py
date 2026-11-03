@@ -93,6 +93,16 @@ class SecurityService:
     def verify_mfa_token(self, secret: str, token: str) -> bool:
         return pyotp.TOTP(secret).verify(token)
 
+def _set_authenticated_tenant(db: Session, tenant_id) -> None:
+    if db.get_bind().dialect.name != "postgresql":
+        return
+    db.execute(
+        text("SELECT set_config('app.tenant_id', :tenant_id, false), set_config('app.auth_lookup', 'false', false)"),
+        {"tenant_id": str(tenant_id)},
+    )
+    db.commit()
+
+
 security_service = SecurityService()
 
 def get_current_user(request: Request, token: Optional[str] = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
@@ -109,6 +119,7 @@ def get_current_user(request: Request, token: Optional[str] = Depends(oauth2_sch
         user = db.query(User).filter(User.tenant_id == api_key.tenant_id, User.is_active.is_(True)).first()
         if not user:
             raise HTTPException(status_code=401, detail="User associated with API Key not found")
+        _set_authenticated_tenant(db, user.tenant_id)
         return user
 
     if not token:
@@ -126,6 +137,7 @@ def get_current_user(request: Request, token: Optional[str] = Depends(oauth2_sch
     tenant_claim = payload.get("tenant")
     if tenant_claim and str(user.tenant_id) != str(tenant_claim):
         raise HTTPException(status_code=401, detail="Token tenant does not match user tenant")
+    _set_authenticated_tenant(db, user.tenant_id)
     return user
 
 def require_role(required_roles: list[str]):
