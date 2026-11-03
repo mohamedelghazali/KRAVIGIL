@@ -112,6 +112,9 @@ def get_current_user(request: Request, token: Optional[str] = Depends(oauth2_sch
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     payload = security_service.decode_token(token, "access")
+    if payload.get("mfa_required") is True:
+        raise HTTPException(status_code=401, detail="MFA verification required")
+
     user_id = payload.get("sub")
     
     user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
