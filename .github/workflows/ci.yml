@@ -50,13 +50,9 @@ jobs:
         ports:
           - 6379:6379
       s3mock:
-        image: localstack/localstack:latest
-        env:
-          SERVICES: s3
-          DEFAULT_REGION: us-east-1
-          DEBUG: "0"
+        image: adobe/s3mock:5.2.3
         ports:
-          - 4566:4566
+          - 9090:9090
 
     steps:
     - uses: actions/checkout@v3
@@ -91,7 +87,7 @@ jobs:
     - name: Wait for S3-compatible test endpoint
       run: |
         for attempt in {1..30}; do
-          if curl --fail --silent http://localhost:4566/_localstack/health >/dev/null; then
+          if curl --fail --silent http://localhost:9090/favicon.ico >/dev/null; then
             exit 0
           fi
           sleep 2
@@ -104,9 +100,9 @@ jobs:
         REDIS_URL: redis://localhost:6379/0
         SECRET_KEY: test_secret_key_for_ci
         PYTHONPATH: .:shared/protocols
-        MINIO_ENDPOINT: localhost:4566
-        MINIO_ACCESS_KEY: test
-        MINIO_SECRET_KEY: test
+        MINIO_ENDPOINT: localhost:9090
+        MINIO_ACCESS_KEY: foo
+        MINIO_SECRET_KEY: bar
         MINIO_BUCKET: kravigil-test
         MINIO_SECURE: "false"
         DEBUG: "True"
