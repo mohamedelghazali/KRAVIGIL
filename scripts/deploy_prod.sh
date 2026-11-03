@@ -3,6 +3,7 @@ set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
+mkdir -p workspace
 
 BASE_COMPOSE=(-f infrastructure/docker-compose.yml -f infrastructure/docker-compose.prod.yml)
 
