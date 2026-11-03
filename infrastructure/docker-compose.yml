@@ -131,6 +131,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      network_engine:
+        condition: service_healthy
     networks:
       - control_plane
       - data_plane
@@ -174,6 +176,8 @@ services:
       redis:
         condition: service_healthy
       db:
+        condition: service_healthy
+      minio:
         condition: service_healthy
       network_engine:
         condition: service_healthy
