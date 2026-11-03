@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from backend.database.models.api_key import APIKey
 from backend.database.models.user import User
-from backend.database.session import get_tenant_db
+from backend.database.tenant import get_tenant_db
 from backend.core.security import require_role
 from backend.core.exceptions import KravigilException
 from backend.core.audit_service import AuditService
