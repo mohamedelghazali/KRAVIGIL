@@ -1,5 +1,12 @@
 name: KRAVIGIL CI
 
+concurrency:
+  group: kravigil-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 on:
   push:
     branches: [ "main" ]
