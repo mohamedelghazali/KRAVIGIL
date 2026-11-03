@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 mkdir -p workspace
 
-BASE_COMPOSE=(-f infrastructure/docker-compose.yml -f infrastructure/docker-compose.prod.yml)
+BASE_COMPOSE=(-f infrastructure/docker-compose.yml -f infrastructure/docker-compose.prod.yml -f infrastructure/docker-compose.backup.yml)
 
 if [[ ! -f .env ]]; then
   echo "ERROR: .env is missing. Copy .env.example and configure real secrets." >&2
@@ -27,10 +27,10 @@ require_secret() {
   fi
 }
 
-for name in SECRET_KEY DB_PASSWORD APP_DB_PASSWORD REDIS_PASSWORD MINIO_PASSWORD GRAFANA_PASSWORD KRAVIGIL_ENGINE_AUTH_TOKEN ADMIN_PASSWORD SMTP_USERNAME SMTP_PASSWORD MINIO_SOURCE_PASSWORD MINIO_TARGET_PASSWORD; do
+for name in SECRET_KEY DB_PASSWORD APP_DB_PASSWORD BACKUP_ENCRYPTION_KEY REDIS_PASSWORD MINIO_PASSWORD GRAFANA_PASSWORD KRAVIGIL_ENGINE_AUTH_TOKEN ADMIN_PASSWORD SMTP_USERNAME SMTP_PASSWORD MINIO_SOURCE_PASSWORD MINIO_TARGET_PASSWORD; do
   case "$name" in
     SECRET_KEY|KRAVIGIL_ENGINE_AUTH_TOKEN) require_secret "$name" 64 ;;
-    DB_PASSWORD|APP_DB_PASSWORD|REDIS_PASSWORD|MINIO_PASSWORD|GRAFANA_PASSWORD|SMTP_PASSWORD|MINIO_SOURCE_PASSWORD|MINIO_TARGET_PASSWORD) require_secret "$name" 32 ;;
+    DB_PASSWORD|APP_DB_PASSWORD|BACKUP_ENCRYPTION_KEY|REDIS_PASSWORD|MINIO_PASSWORD|GRAFANA_PASSWORD|SMTP_PASSWORD|MINIO_SOURCE_PASSWORD|MINIO_TARGET_PASSWORD) require_secret "$name" 32 ;;
     *) require_secret "$name" 16 ;;
   esac
 done
@@ -117,7 +117,7 @@ ALTER DEFAULT PRIVILEGES FOR ROLE :"admin_user" IN SCHEMA public
 SQL
 
 echo "[6/7] Starting the application with RLS-enforced credentials..."
-docker compose "${BASE_COMPOSE[@]}" up -d backend worker frontend nginx prometheus grafana
+docker compose "${BASE_COMPOSE[@]}" up -d backend worker frontend nginx prometheus grafana backup
 
 echo "Deployment commands completed. Checking application health..."
 curl --fail --silent --show-error "${FRONTEND_URL%/}/api/v1/system/health"
