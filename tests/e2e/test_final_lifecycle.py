@@ -9,7 +9,8 @@ from sqlalchemy.orm import sessionmaker
 
 from backend.core.security import security_service
 from backend.database.models.base import Base
-from backend.database.session import get_db, get_tenant_db
+from backend.database.session import get_db
+from backend.database.tenant import get_tenant_db
 from backend.main import app
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test_final.db"
