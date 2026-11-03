@@ -34,7 +34,7 @@ for name in SECRET_KEY DB_PASSWORD REDIS_PASSWORD MINIO_PASSWORD GRAFANA_PASSWOR
   esac
 done
 
-for name in MINIO_USER SMTP_HOST SMTP_FROM_ADDRESS ADMIN_EMAIL FRONTEND_URL; do
+for name in MINIO_USER MINIO_SOURCE_USER MINIO_TARGET_USER SMTP_HOST SMTP_FROM_ADDRESS ADMIN_EMAIL FRONTEND_URL; do
   if [[ -z "${!name:-}" || "${!name}" == CHANGE_ME* ]]; then
     echo "ERROR: $name must be configured in .env." >&2
     exit 1
@@ -48,6 +48,21 @@ for name in DB_PASSWORD REDIS_PASSWORD; do
     exit 1
   fi
 done
+
+case "$FRONTEND_URL" in
+  https://*) ;;
+  *) echo "ERROR: FRONTEND_URL must use HTTPS in production." >&2; exit 1 ;;
+esac
+DOMAIN="${FRONTEND_URL#https://}"
+DOMAIN="${DOMAIN%%/*}"
+if ! grep -Fq "server_name $DOMAIN;" infrastructure/nginx/nginx.prod.conf; then
+  echo "ERROR: nginx.prod.conf server_name must match $DOMAIN." >&2
+  exit 1
+fi
+if [[ ! -s "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" || ! -s "/etc/letsencrypt/live/$DOMAIN/privkey.pem" ]]; then
+  echo "ERROR: Let's Encrypt certificate files for $DOMAIN are missing under /etc/letsencrypt." >&2
+  exit 1
+fi
 
 CERT_DIR="infrastructure/certs/network-engine"
 for file in "$CERT_DIR/server.crt" "$CERT_DIR/server.key" "$CERT_DIR/ca.crt"; do
