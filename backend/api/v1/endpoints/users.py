@@ -57,6 +57,11 @@ class SessionResponse(BaseModel):
     class Config:
         from_attributes = True
 
+@router.get("/me", response_model=UserResponse)
+def get_me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def create_user(
     user_in: UserCreate,
