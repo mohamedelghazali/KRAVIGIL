@@ -54,8 +54,6 @@ services:
           memory: 2G
     cap_drop:
       - ALL
-    cap_add:
-      - NET_RAW
     security_opt:
       - no-new-privileges:true
       - seccomp:./seccomp/network_engine.json
