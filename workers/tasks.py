@@ -269,7 +269,10 @@ def run_sast_scan(self, tenant_id: str, scan_id: str, asset_id: str, code_path: 
         scan = db.query(Scan).filter(Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid).first()
         if scan is None:
             raise ValueError("Scan not found for tenant")
+        workspace_root = Path(os.getenv("SAST_WORKSPACE_ROOT", "/workspace")).resolve(strict=True)
         source_path = Path(code_path).resolve(strict=True)
+        if not source_path.is_relative_to(workspace_root):
+            raise ValueError("SAST code_path must be inside the mounted workspace")
         if not source_path.is_dir():
             raise ValueError("SAST code_path must be an existing directory")
         scan.status = "RUNNING"
@@ -498,7 +501,7 @@ def check_scheduled_scans():
                             pinned_ip, params.get("ports", [22, 80, 443, 8080]),
                         )
                     elif scan_type == "WEB":
-                        target_url = params.get("target_url") or target_domain or pinned_ip
+                        target_url = target_domain or pinned_ip
                         if not str(target_url).startswith(("http://", "https://")):
                             target_url = f"https://{target_url}"
                         task = run_web_scan.delay(
