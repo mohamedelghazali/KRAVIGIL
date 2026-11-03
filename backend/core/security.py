@@ -1,4 +1,5 @@
 import logging
+import uuid
 import secrets
 import hashlib
 import pyotp
@@ -130,8 +131,12 @@ def get_current_user(request: Request, token: Optional[str] = Depends(oauth2_sch
         raise HTTPException(status_code=401, detail="MFA verification required")
 
     user_id = payload.get("sub")
-    
-    user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
+    try:
+        user_uuid = uuid.UUID(str(user_id))
+    except (ValueError, TypeError, AttributeError):
+        raise HTTPException(status_code=401, detail="Invalid token subject")
+
+    user = db.query(User).filter(User.id == user_uuid, User.is_active == True).first()
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
     tenant_claim = payload.get("tenant")
