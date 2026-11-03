@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    JSON,
     Column,
     String,
     DateTime,
@@ -71,7 +72,7 @@ class Finding(Base):
     workflow_status = Column(String(50), default="open", nullable=False)
     disposition = Column(String(50))
 
-    evidence_refs = Column(JSONB, default=list, nullable=False)
+    evidence_refs = Column(JSON().with_variant(JSONB, "postgresql"), default=list, nullable=False)
     remediation = Column(Text)
 
     first_seen = Column(DateTime, default=datetime.utcnow, nullable=False)
