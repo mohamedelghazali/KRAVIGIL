@@ -1,4 +1,5 @@
 import pytest
+import uuid
 from unittest.mock import AsyncMock, patch
 from ai.gateway.security_guard import SecurityGuard
 from ai.gateway.output_validator import OutputValidator
@@ -41,8 +42,8 @@ async def test_ai_gateway_full_flow(mock_analyze, mocker):
     
     gateway = AIGateway()
     result = await gateway.process_finding_analysis(
-        tenant_id="test-tenant",
-        finding_id="test-finding",
+        tenant_id=str(uuid.uuid4()),
+        finding_id=str(uuid.uuid4()),
         finding_data={"title": "SQLi"},
         raw_evidence="SELECT * FROM users WHERE id = 1 OR 1=1"
     )
