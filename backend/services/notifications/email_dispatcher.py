@@ -12,14 +12,17 @@ class EmailDispatcher:
             return False
 
         msg = EmailMessage()
-        msg['Subject'] = f"KRAVIGIL Alert: {event_type}"
-        msg['From'] = smtp_config.get("from_address", "alerts@kravigil.local")
+        msg['Subject'] = f"KRAVIGIL: {event_type}"
+        msg['From'] = smtp_config.get("from_address", "noreply@kravigil.local")
         msg['To'] = ", ".join(to_addresses)
-
-        body = f"Event: {event_type}\n\nDetails:\n"
-        for key, value in data.items():
-            body += f"- {key}: {value}\n"
-
+        
+        if event_type == "PASSWORD_RESET":
+            body = f"Please click the link below to reset your password:\n\n{data.get('link')}\n\nIf you did not request this, ignore this email."
+        else:
+            body = f"Event: {event_type}\n\nDetails:\n"
+            for key, value in data.items():
+                body += f"- {key}: {value}\n"
+                
         msg.set_content(body)
 
         try:
