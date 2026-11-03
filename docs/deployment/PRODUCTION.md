@@ -19,7 +19,7 @@ Generate URL-safe random secrets, for example:
 openssl rand -hex 32
 ```
 
-Use unique values for `SECRET_KEY`, `DB_PASSWORD`, `REDIS_PASSWORD`, `MINIO_PASSWORD`, `GRAFANA_PASSWORD`, `KRAVIGIL_ENGINE_AUTH_TOKEN`, SMTP credentials and the initial administrator password. The deployment script rejects empty or placeholder values and requires HTTPS.
+Use unique values for `SECRET_KEY`, `DB_PASSWORD`, `APP_DB_PASSWORD`, `REDIS_PASSWORD`, `MINIO_PASSWORD`, `GRAFANA_PASSWORD`, `KRAVIGIL_ENGINE_AUTH_TOKEN`, SMTP credentials and the initial administrator password. The deployment script rejects empty or placeholder values and requires HTTPS.
 
 Set:
 
@@ -29,7 +29,9 @@ Set:
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and `SMTP_FROM_ADDRESS`
 - `MINIO_SOURCE_USER/PASSWORD` and `MINIO_TARGET_USER/PASSWORD`
 
-`GEMINI_API_KEY` is optional; AI analysis tasks require it.
+`GEMINI_API_KEY` and `OTX_API_KEY` are optional. AI analysis requires Gemini; threat-intelligence synchronization requires OTX.
+
+Cloud scans use the pinned Prowler CLI. Configure AWS credentials (or an appropriate workload credential provider), Azure service-principal variables, or a GCP service-account JSON file. Set `GOOGLE_APPLICATION_CREDENTIALS_HOST_PATH` to the absolute host path of the GCP JSON file. The worker mounts that file read-only.
 
 ## 2. Configure the network engine TLS identity
 
@@ -52,6 +54,8 @@ chmod 0444 infrastructure/certs/network-engine/server.crt infrastructure/certs/n
 
 The certificate must include `DNS:network_engine` in its subject alternative names. The server key is mounted read-only and is readable by the dedicated container UID 10001. These files are excluded from Git.
 
+Create authorized SAST source directories under `workspace/`. The worker mounts this directory read-only and rejects paths outside `/workspace`.
+
 ## 3. Configure HTTPS termination
 
 Update all three occurrences of the placeholder domain in `infrastructure/nginx/nginx.prod.conf` to the exact domain in `FRONTEND_URL`. Ensure the matching files exist:
@@ -69,7 +73,7 @@ From the repository root:
 ./scripts/go_live.sh
 ```
 
-The script validates the environment, verifies the network-engine certificates, validates the merged Compose configuration, builds images, starts dependencies, applies Alembic migrations, seeds the initial administrator, starts remaining services and checks the HTTPS system-health endpoint.
+The script validates secrets and certificates, builds images, starts healthy dependencies, applies Alembic migrations with the database administrator, seeds the initial administrator, provisions a non-superuser `kravigil_app` role, and runs the API and workers with that role so PostgreSQL row-level security is actually enforced. It then starts the remaining services and checks the HTTPS system-health endpoint.
 
 The script does not perform a production deployment from this chat. Run it on the intended host after reviewing the configuration.
 
