@@ -24,6 +24,22 @@ import uuid
 
 router = APIRouter()
 
+def _resolve_scan_ip(target: Target, guard: ScopeGuard) -> str:
+    # Validate every configured destination. When both fields are present,
+    # web scans use the domain while network scans use the IP.
+    resolved_addresses: list[str] = []
+    if target.ip_address:
+        resolved_addresses.extend(guard.validate_target(target.ip_address))
+    if target.domain:
+        resolved_addresses.extend(guard.validate_target(target.domain))
+    if not resolved_addresses:
+        raise ScopeViolationException("Target must include a resolvable IP address or domain")
+    try:
+        return str(ipaddress.ip_address(target.ip_address)) if target.ip_address else resolved_addresses[0]
+    except ValueError as exc:
+        raise ScopeViolationException("Target must resolve to a valid IP address") from exc
+
+
 class NetworkScanCreate(BaseModel):
     target_id: uuid.UUID
     ports: List[int] = Field(default=[22, 80, 443, 8080], max_items=1000)
@@ -60,20 +76,7 @@ def _init_scan(db: Session, tenant_id: uuid.UUID, target_id: uuid.UUID, scan_typ
     if not target.is_authorized: raise ScopeViolationException("Target is not authorized")
 
     guard = ScopeGuard(get_settings().ALLOWED_SCAN_CIDRS)
-    # Validate every configured destination. When both fields are present,
-    # web scans use the domain while network scans use the IP; validating only
-    # the IP would leave the web-scan destination outside the checked scope.
-    resolved_addresses: list[str] = []
-    if target.ip_address:
-        resolved_addresses.extend(guard.validate_target(target.ip_address))
-    if target.domain:
-        resolved_addresses.extend(guard.validate_target(target.domain))
-    if not resolved_addresses:
-        raise ScopeViolationException("Target must include a resolvable IP address or domain")
-    try:
-        scan_ip = str(ipaddress.ip_address(target.ip_address)) if target.ip_address else resolved_addresses[0]
-    except ValueError as exc:
-        raise ScopeViolationException("Target must resolve to a valid IP address") from exc
+    scan_ip = _resolve_scan_ip(target, guard)
 
     asset = db.query(Asset).filter(Asset.target_id == target.id, Asset.tenant_id == tenant_id).first()
     if not asset:
