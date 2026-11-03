@@ -150,9 +150,12 @@ def run_cloud_scan(self, tenant_id: str, scan_id: str, asset_id: str, provider: 
 
 import json
 import os
+import httpx
 from pathlib import Path
 
 from backend.database.models.asset import Asset
+from backend.database.models.user import Organization
+from backend.database.models.threat_intel import ThreatIndicator
 from backend.database.models.target import Target
 from backend.database.models.schedule import ScheduledScan
 from backend.services.scheduler.cron_parser import CronParser
@@ -524,6 +527,61 @@ def check_scheduled_scans():
     except Exception:
         db.rollback()
         logger.exception("Scheduled scan dispatch failed")
+        raise
+    finally:
+        _close_worker_session(db)
+
+
+@celery_app.task(name="tasks.sync_threat_intel", acks_late=True)
+def sync_threat_intel():
+    api_key = os.getenv("OTX_API_KEY")
+    if not api_key:
+        raise RuntimeError("OTX_API_KEY is required to synchronize AlienVault OTX indicators")
+
+    with httpx.Client(timeout=30.0) as client:
+        response = client.get(
+            "https://otx.alienvault.com/api/v1/pulses/subscribed",
+            params={"limit": 100},
+            headers={"X-OTX-API-KEY": api_key, "Accept": "application/json"},
+        )
+        response.raise_for_status()
+        pulses = response.json().get("results", [])
+
+    db = SessionLocal()
+    inserted = 0
+    try:
+        organizations = db.query(Organization).all()
+        for organization in organizations:
+            set_worker_tenant(db, organization.id)
+            for pulse in pulses:
+                pulse_name = str(pulse.get("name") or pulse.get("id") or "unknown")[:255]
+                for indicator in pulse.get("indicators", []):
+                    value = str(indicator.get("indicator") or "").strip()
+                    indicator_type = str(indicator.get("type") or "unknown").lower()[:50]
+                    if not value:
+                        continue
+                    existing = db.query(ThreatIndicator.id).filter(
+                        ThreatIndicator.tenant_id == organization.id,
+                        ThreatIndicator.indicator_type == indicator_type,
+                        ThreatIndicator.indicator_value == value[:512],
+                        ThreatIndicator.source == "alienvault_otx",
+                    ).first()
+                    if existing:
+                        continue
+                    db.add(ThreatIndicator(
+                        tenant_id=organization.id,
+                        indicator_type=indicator_type,
+                        indicator_value=value[:512],
+                        threat_type=pulse_name,
+                        source="alienvault_otx",
+                        raw_data={"pulse_id": pulse.get("id"), "indicator": indicator},
+                    ))
+                    inserted += 1
+            db.commit()
+        return {"pulses": len(pulses), "indicators_inserted": inserted}
+    except Exception:
+        db.rollback()
+        logger.exception("Threat intelligence synchronization failed")
         raise
     finally:
         _close_worker_session(db)
