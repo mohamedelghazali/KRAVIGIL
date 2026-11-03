@@ -33,7 +33,7 @@ RUN protoc -I . --cpp_out=. --grpc_out=. --plugin=protoc-gen-grpc=`which grpc_cp
 WORKDIR /app/engines/network_cpp
 RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
     -DgRPC_DIR=/usr/lib/x86_64-linux-gnu/cmake/grpc \
-    -DCMAKE_PREFIX_PATH=/usr/lib/x86_64-linux-gnu/cmake/grpc \
+    -DCMAKE_PREFIX_PATH="/usr/lib/x86_64-linux-gnu/cmake/grpc;/usr/lib/x86_64-linux-gnu/cmake" \
     && cmake --build build --parallel
 
 FROM ubuntu:22.04
