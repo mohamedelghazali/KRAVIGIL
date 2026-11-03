@@ -22,10 +22,13 @@ settings = get_settings()
 
 
 def _set_auth_lookup(db: Session) -> None:
-    db.execute(text("SELECT set_config('app.auth_lookup', 'true', true)"))
+    if db.get_bind().dialect.name == "postgresql":
+        db.execute(text("SELECT set_config('app.auth_lookup', 'true', true)"))
 
 
 def _set_tenant_context(db: Session, tenant_id) -> None:
+    if db.get_bind().dialect.name != "postgresql":
+        return
     db.execute(
         text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
         {"tenant_id": str(tenant_id)},
