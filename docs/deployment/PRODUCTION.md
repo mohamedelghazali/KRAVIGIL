@@ -86,7 +86,7 @@ Before opening public access:
 3. Run network, web, SAST and cloud scan workflows only against explicitly authorized targets.
 4. Verify report generation, evidence upload/download, webhook delivery, metrics and Grafana provisioning.
 5. Wait for the first encrypted PostgreSQL backup to finish and confirm the backup container is healthy. Verify MinIO replication for both evidence and backup buckets.
-6. Restore a backup into an isolated PostgreSQL database: download the `.dump.enc` object and its `.sha256` sidecar, run `sha256sum -c`, decrypt with `openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -md sha256 -pass env:BACKUP_ENCRYPTION_KEY`, then validate with `pg_restore --list` before restoring with `pg_restore --clean --if-exists --no-owner --no-acl`. Never test restore against the live production database.
+6. Restore a backup into an isolated PostgreSQL database: download the `.dump.gpg` object and its `.sha256` sidecar, run `sha256sum -c`, decrypt with `gpg --batch --pinentry-mode loopback --passphrase-file "$BACKUP_PASSPHRASE_FILE" --output restore.dump --decrypt backup.dump.gpg`, then validate with `pg_restore --list` before restoring with `pg_restore --clean --if-exists --no-owner --no-acl`. Never test restore against the live production database.
 7. Verify evidence objects and their SHA-256 hashes after replication and restore.
 8. Confirm MinIO versioning and replication state rather than assuming they are enabled by the Compose file. The bundled target MinIO runs on the same host by default; move it to a separate failure domain for genuine off-host disaster recovery.
 9. Review firewall rules; expose only the intended HTTPS entry point. Do not publish PostgreSQL, Redis, MinIO, Grafana or the gRPC engine directly.
