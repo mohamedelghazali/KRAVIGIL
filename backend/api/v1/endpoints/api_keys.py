@@ -46,6 +46,7 @@ def create_api_key(
 
         api_key = APIKey(
             tenant_id=current_user.tenant_id,
+            created_by_user_id=current_user.id,
             name=key_in.name,
             prefix=prefix,
             key_hash=key_hash,
@@ -122,6 +123,7 @@ def rotate_api_key(
     raw_key, prefix, key_hash = APIKey.generate_key()
     new_key = APIKey(
         tenant_id=current_user.tenant_id,
+        created_by_user_id=current_user.id,
         name=old_key.name,
         prefix=prefix,
         key_hash=key_hash,
