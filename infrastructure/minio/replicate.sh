@@ -44,7 +44,7 @@ docker run --rm \
     done
 
     for ALIAS in source target; do
-      RULES="$(mc ilm rule ls --json "$ALIAS/$BACKUP_BUCKET" 2>/dev/null || true)"
+      RULES="$(mc --json ilm rule ls "$ALIAS/$BACKUP_BUCKET" 2>/dev/null || true)"
       if ! printf '%s' "$RULES" | grep -q '"expireDays":'; then
         mc ilm rule add --expire-days "$BACKUP_RETENTION_DAYS" \
           --noncurrent-expire-days "$BACKUP_RETENTION_DAYS" "$ALIAS/$BACKUP_BUCKET"
