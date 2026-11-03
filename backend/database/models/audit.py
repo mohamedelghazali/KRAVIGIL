@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, ForeignKey, Index
+from sqlalchemy import JSON, Column, String, DateTime, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from backend.database.models.base import Base
 
@@ -19,7 +19,7 @@ class AuditLog(Base):
     source_ip = Column(String(45))
     user_agent = Column(String(512))
     status_code = Column(String(10))
-    details = Column(JSONB, default=dict)
+    details = Column(JSON().with_variant(JSONB, "postgresql"), default=dict)
 
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
