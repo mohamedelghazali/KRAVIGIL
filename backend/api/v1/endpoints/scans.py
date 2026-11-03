@@ -52,7 +52,7 @@ class ScanResponse(BaseModel):
         from_attributes = True
 
 def _init_scan(db: Session, tenant_id: uuid.UUID, target_id: uuid.UUID, scan_type: str) -> tuple[Scan, Asset]:
-    target = db.query(Target).filter(Target.id == target_id).first()
+    target = db.query(Target).filter(Target.id == target_id, Target.tenant_id == tenant_id).first()
     if not target: raise HTTPException(status_code=404, detail="Target not found")
     if not target.is_authorized: raise ScopeViolationException("Target is not authorized")
 
@@ -63,7 +63,7 @@ def _init_scan(db: Session, tenant_id: uuid.UUID, target_id: uuid.UUID, scan_typ
     except ValueError as exc:
         raise ScopeViolationException("Target must resolve to a valid IP address") from exc
 
-    asset = db.query(Asset).filter(Asset.target_id == target.id).first()
+    asset = db.query(Asset).filter(Asset.target_id == target.id, Asset.tenant_id == tenant_id).first()
     if not asset:
         asset = Asset(
             tenant_id=tenant_id,
@@ -113,6 +113,57 @@ def start_network_scan(
     except Exception as e:
         db.rollback()
         raise KravigilException(message=f"Failed to initiate scan: {str(e)}", status_code=500, error_code="SCAN_INIT_ERROR")
+
+@router.post("/web", response_model=ScanResponse, status_code=status.HTTP_202_ACCEPTED)
+def start_web_scan(scan_in: WebScanCreate, current_user: User = Depends(require_role(["admin", "analyst"])), db: Session = Depends(get_tenant_db)):
+    scan = None
+    try:
+        scan, asset = _init_scan(db, current_user.tenant_id, scan_in.target_id, "WEB")
+        target = db.query(Target).filter(Target.id == scan_in.target_id, Target.tenant_id == current_user.tenant_id).first()
+        hostname = target.domain or asset.ip_address
+        target_url = hostname if hostname.startswith(("http://", "https://")) else f"https://{hostname}"
+        task = run_web_scan.delay(str(current_user.tenant_id), str(scan.id), str(asset.id), target_url)
+        scan.task_id = task.id
+        db.commit()
+        return scan
+    except (HTTPException, ScopeViolationException):
+        raise
+    except Exception as exc:
+        db.rollback()
+        if scan is not None:
+            failed = db.query(Scan).filter(Scan.id == scan.id, Scan.tenant_id == current_user.tenant_id).first()
+            if failed:
+                failed.status = "FAILED"
+                failed.error_message = str(exc)[:2048]
+                failed.finished_at = datetime.utcnow()
+                db.commit()
+        raise KravigilException(message="Failed to initiate web scan", status_code=500, error_code="SCAN_INIT_ERROR")
+
+
+@router.post("/cloud", response_model=ScanResponse, status_code=status.HTTP_202_ACCEPTED)
+def start_cloud_scan(scan_in: CloudScanCreate, current_user: User = Depends(require_role(["admin", "analyst"])), db: Session = Depends(get_tenant_db)):
+    provider = scan_in.provider.lower()
+    if provider not in {"aws", "azure", "gcp"}:
+        raise HTTPException(status_code=422, detail="Unsupported cloud provider")
+    scan = None
+    try:
+        scan, asset = _init_scan(db, current_user.tenant_id, scan_in.target_id, "CLOUD")
+        task = run_cloud_scan.delay(str(current_user.tenant_id), str(scan.id), str(asset.id), provider)
+        scan.task_id = task.id
+        db.commit()
+        return scan
+    except (HTTPException, ScopeViolationException):
+        raise
+    except Exception as exc:
+        db.rollback()
+        if scan is not None:
+            failed = db.query(Scan).filter(Scan.id == scan.id, Scan.tenant_id == current_user.tenant_id).first()
+            if failed:
+                failed.status = "FAILED"
+                failed.error_message = str(exc)[:2048]
+                failed.finished_at = datetime.utcnow()
+                db.commit()
+        raise KravigilException(message="Failed to initiate cloud scan", status_code=500, error_code="SCAN_INIT_ERROR")
 
 @router.post("/{scan_id}/cancel")
 def cancel_scan(
