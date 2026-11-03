@@ -28,9 +28,14 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     role = Column(String(50), default="analyst", nullable=False)
+    
+    mfa_secret = Column(String(255), nullable=True)
+    is_mfa_enabled = Column(Boolean, default=False, nullable=False)
+    
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     organization = relationship("Organization", back_populates="users")
+    sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
 
     __table_args__ = (
         CheckConstraint("role IN ('admin', 'analyst', 'viewer')", name="ck_user_role"),
