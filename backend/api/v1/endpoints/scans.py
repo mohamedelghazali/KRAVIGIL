@@ -165,6 +165,37 @@ def start_cloud_scan(scan_in: CloudScanCreate, current_user: User = Depends(requ
                 db.commit()
         raise KravigilException(message="Failed to initiate cloud scan", status_code=500, error_code="SCAN_INIT_ERROR")
 
+@router.post("/sast", response_model=ScanResponse, status_code=status.HTTP_202_ACCEPTED)
+def start_sast_scan(scan_in: SASTScanCreate, current_user: User = Depends(require_role(["admin", "analyst"])), db: Session = Depends(get_tenant_db)):
+    from pathlib import PurePosixPath
+    requested_path = PurePosixPath(scan_in.code_path)
+    if not requested_path.is_absolute() or not str(requested_path).startswith("/workspace/") or ".." in requested_path.parts:
+        raise HTTPException(status_code=422, detail="SAST path must be inside /workspace")
+    asset = db.query(Asset).filter(Asset.id == scan_in.asset_id, Asset.tenant_id == current_user.tenant_id).first()
+    if asset is None:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    target = db.query(Target).filter(Target.id == asset.target_id, Target.tenant_id == current_user.tenant_id, Target.is_authorized.is_(True)).first()
+    if target is None:
+        raise ScopeViolationException("SAST asset must belong to an authorized target")
+    scan = Scan(tenant_id=current_user.tenant_id, target_id=target.id, asset_id=asset.id, status="PENDING", scan_type="SAST")
+    db.add(scan)
+    db.commit()
+    db.refresh(scan)
+    try:
+        task = run_sast_scan.delay(str(current_user.tenant_id), str(scan.id), str(asset.id), str(requested_path))
+        scan.task_id = task.id
+        db.commit()
+        return scan
+    except Exception as exc:
+        db.rollback()
+        failed = db.query(Scan).filter(Scan.id == scan.id, Scan.tenant_id == current_user.tenant_id).first()
+        if failed:
+            failed.status = "FAILED"
+            failed.error_message = str(exc)[:2048]
+            failed.finished_at = datetime.utcnow()
+            db.commit()
+        raise KravigilException(message="Failed to initiate SAST scan", status_code=500, error_code="SCAN_INIT_ERROR")
+
 @router.post("/{scan_id}/cancel")
 def cancel_scan(
     scan_id: uuid.UUID,
