@@ -14,7 +14,12 @@ RUN wget https://github.com/projectdiscovery/nuclei/releases/download/v3.1.0/nuc
     && rm nuclei_3.1.0_linux_amd64.zip \
     && chmod +x /usr/local/bin/nuclei
 
-RUN pip install semgrep==1.53.0
+RUN pip install --no-cache-dir semgrep==1.53.0
+
+# Keep Prowler's large provider SDK dependency graph isolated from the API/worker runtime.
+RUN python -m venv /opt/prowler \
+    && /opt/prowler/bin/pip install --no-cache-dir prowler==5.47.0 \
+    && ln -s /opt/prowler/bin/prowler /usr/local/bin/prowler
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
