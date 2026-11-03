@@ -124,7 +124,11 @@ echo "[7/8] Starting the application with RLS-enforced credentials..."
 docker compose "${BASE_COMPOSE[@]}" up -d backend worker frontend nginx prometheus grafana backup
 
 echo "[8/8] Checking application health..."
-curl --fail --silent --show-error "${FRONTEND_URL%/}/api/v1/system/health"
-echo
+HEALTH_RESPONSE="$(curl --fail --silent --show-error "${FRONTEND_URL%/}/api/v1/system/health")"
+printf '%s\n' "$HEALTH_RESPONSE"
+if ! grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"' <<< "$HEALTH_RESPONSE"; then
+  echo "ERROR: API health endpoint reports degraded or unhealthy components." >&2
+  exit 1
+fi
 docker compose "${BASE_COMPOSE[@]}" ps
-echo "KRAVIGIL deployment completed. Review service health and logs before opening access to users."
+echo "KRAVIGIL deployment health checks passed. Review service health and logs before opening access to users."
