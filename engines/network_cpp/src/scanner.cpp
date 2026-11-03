@@ -32,6 +32,11 @@ void AsyncScanner::stop() {
         return;
     }
 
+    {
+        std::lock_guard<std::mutex> lock(state_mutex_);
+        current_port_index_ = ports_.size();
+    }
+
     auto self = shared_from_this();
     boost::asio::post(io_context_, [self]() {
         std::lock_guard<std::mutex> lock(self->state_mutex_);
