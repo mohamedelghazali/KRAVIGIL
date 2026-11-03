@@ -136,6 +136,7 @@ def run_cloud_scan(self, tenant_id: str, scan_id: str, asset_id: str, provider: 
             db.bulk_save_objects(observations)
             db.commit()
 
+        db.refresh(scan)
         if scan.status == "CANCELLED":
             return {"status": "cancelled", "scan_id": scan_id}
         scan.status = "COMPLETED"
@@ -210,6 +211,7 @@ def run_network_scan(self, tenant_id: str, scan_id: str, asset_id: str, target_i
             db.commit()
 
         scan = db.query(Scan).filter(Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid).first()
+        db.refresh(scan)
         if scan.status == "CANCELLED":
             return {"status": "cancelled", "scan_id": scan_id}
         scan.status = "COMPLETED"
@@ -255,6 +257,7 @@ def run_web_scan(self, tenant_id: str, scan_id: str, asset_id: str, target_url: 
         ]
         if observations:
             db.add_all(observations)
+        db.refresh(scan)
         if scan.status == "CANCELLED":
             return {"status": "cancelled", "scan_id": scan_id}
         scan.status = "COMPLETED"
@@ -266,7 +269,7 @@ def run_web_scan(self, tenant_id: str, scan_id: str, asset_id: str, target_url: 
     except Exception as exc:
         db.rollback()
         scan = db.query(Scan).filter(Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid).first()
-        if scan is not None:
+        if scan is not None and scan.status != "CANCELLED":
             scan.status = "FAILED"
             scan.error_message = str(exc)[:2048]
             scan.finished_at = datetime.utcnow()
@@ -312,6 +315,7 @@ def run_sast_scan(self, tenant_id: str, scan_id: str, asset_id: str, code_path: 
             ))
         if observations:
             db.add_all(observations)
+        db.refresh(scan)
         if scan.status == "CANCELLED":
             return {"status": "cancelled", "scan_id": scan_id}
         scan.status = "COMPLETED"
@@ -323,7 +327,7 @@ def run_sast_scan(self, tenant_id: str, scan_id: str, asset_id: str, code_path: 
     except Exception as exc:
         db.rollback()
         scan = db.query(Scan).filter(Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid).first()
-        if scan is not None:
+        if scan is not None and scan.status != "CANCELLED":
             scan.status = "FAILED"
             scan.error_message = str(exc)[:2048]
             scan.finished_at = datetime.utcnow()
