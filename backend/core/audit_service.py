@@ -1,6 +1,7 @@
 import logging
 from backend.database.session import SessionLocal
 from backend.database.models.audit import AuditLog
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
@@ -11,6 +12,11 @@ class AuditService:
                   user_agent=None, status_code=None, details=None):
         session = SessionLocal()
         try:
+            if tenant_id is not None:
+                session.execute(
+                    text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
+                    {"tenant_id": str(tenant_id)},
+                )
             record = AuditLog(
                 tenant_id=tenant_id,
                 actor_id=actor_id,
