@@ -10,6 +10,8 @@ from backend.core.security import get_current_user, require_role
 from backend.core.exceptions import KravigilException, ScopeViolationException
 from backend.core.audit_service import AuditService
 from backend.security.scope_guard import ScopeGuard
+from backend.core.config import get_settings
+import ipaddress
 from workers.tasks import run_network_scan, run_web_scan, run_sast_scan, run_cloud_scan
 from workers.celery_app import celery_app
 from pydantic import BaseModel, Field, validator
@@ -52,17 +54,25 @@ def _init_scan(db: Session, tenant_id: uuid.UUID, target_id: uuid.UUID, scan_typ
     if not target: raise HTTPException(status_code=404, detail="Target not found")
     if not target.is_authorized: raise ScopeViolationException("Target is not authorized")
 
-    guard = ScopeGuard()
-    guard.validate_target(target.ip_address or target.domain)
+    guard = ScopeGuard(get_settings().ALLOWED_SCAN_CIDRS)
+    resolved_addresses = guard.validate_target(target.ip_address or target.domain)
+    try:
+        scan_ip = str(ipaddress.ip_address(target.ip_address)) if target.ip_address else resolved_addresses[0]
+    except ValueError as exc:
+        raise ScopeViolationException("Target must resolve to a valid IP address") from exc
 
     asset = db.query(Asset).filter(Asset.target_id == target.id).first()
     if not asset:
         asset = Asset(
             tenant_id=tenant_id,
             target_id=target.id,
-            ip_address=target.ip_address or target.domain
+            ip_address=scan_ip
         )
         db.add(asset)
+        db.commit()
+        db.refresh(asset)
+    elif asset.ip_address != scan_ip:
+        asset.ip_address = scan_ip
         db.commit()
         db.refresh(asset)
 
