@@ -243,7 +243,10 @@ def reset_password(req: ResetPasswordRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    user.hashed_password = security_service.get_password_hash(req.new_password)
+    try:
+        user.hashed_password = security_service.get_password_hash(req.new_password)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     reset_entry.is_used = True
     db.commit()
 
@@ -259,12 +262,20 @@ def change_password(
     db: Session = Depends(get_db)
 ):
     _set_tenant_context(db, current_user.tenant_id)
-    if len(req.new_password) < 12:
-        raise HTTPException(status_code=400, detail="New password must be at least 12 characters")
-    if not security_service.verify_password(req.current_password, current_user.hashed_password):
-        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    db_user = db.query(User).filter(
+        User.id == current_user.id,
+        User.tenant_id == current_user.tenant_id,
+    ).first()
+    if db_user is None:
+        raise HTTPException(status_code=401, detail="User not found")
 
-    current_user.hashed_password = security_service.get_password_hash(req.new_password)
+    if not security_service.verify_password(req.current_password, db_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    try:
+        db_user.hashed_password = security_service.get_password_hash(req.new_password)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     db.query(UserSession).filter(
         UserSession.user_id == current_user.id,
         UserSession.is_revoked == False
