@@ -4,6 +4,7 @@ from datetime import datetime
 from sqlalchemy import JSON, Column, DateTime, ForeignKey, Index, String
 from sqlalchemy import Uuid
 from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
 
 from backend.database.models.base import Base
@@ -34,6 +35,7 @@ class Observation(Base):
     engine_id = Column(String(100), nullable=False)
     event_type = Column(String(100), nullable=False)
     raw_data = Column(JSON().with_variant(JSONB, "postgresql"), nullable=False)
+    scan = relationship("Scan", back_populates="observations")
     scan = relationship("Scan", back_populates="observations")
     created_at = Column(
         DateTime(timezone=True),
