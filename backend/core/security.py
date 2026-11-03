@@ -118,9 +118,17 @@ def get_current_user(request: Request, token: Optional[str] = Depends(oauth2_sch
         if not api_key or (api_key.expires_at and api_key.expires_at < datetime.utcnow()):
             raise HTTPException(status_code=401, detail="Invalid or expired API Key")
 
-        user = db.query(User).filter(User.tenant_id == api_key.tenant_id, User.is_active.is_(True)).first()
+        # An API key inherits the current permissions of its creator. Never
+        # select an arbitrary tenant member: doing so can silently elevate keys.
+        if api_key.created_by_user_id is None:
+            raise HTTPException(status_code=401, detail="API Key has no valid owner; rotate it")
+        user = db.query(User).filter(
+            User.id == api_key.created_by_user_id,
+            User.tenant_id == api_key.tenant_id,
+            User.is_active.is_(True),
+        ).first()
         if not user:
-            raise HTTPException(status_code=401, detail="User associated with API Key not found")
+            raise HTTPException(status_code=401, detail="API Key owner not found or inactive")
         _set_authenticated_tenant(db, user.tenant_id)
         return user
 
