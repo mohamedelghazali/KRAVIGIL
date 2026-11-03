@@ -249,8 +249,8 @@ def run_web_scan(self, tenant_id: str, scan_id: str, asset_id: str, target_url: 
         scan.started_at = datetime.utcnow()
         db.commit()
 
-        ScopeGuard(get_settings().ALLOWED_SCAN_CIDRS).validate_target(target_url)
-        results = NucleiAdapter().scan(target_url)
+        resolved_addresses = ScopeGuard(get_settings().ALLOWED_SCAN_CIDRS).validate_target(target_url)
+        results = NucleiAdapter().scan(target_url, pinned_ip=resolved_addresses[0])
         observations = [
             Normalizer.from_nuclei_result(tenant_uuid, scan_uuid, asset_uuid, item)
             for item in results
