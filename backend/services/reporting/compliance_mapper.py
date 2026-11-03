@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ class ComplianceMapper:
     }
 
     @staticmethod
-    def map_to_owasp(cwe_id: str) -> str:
+    def map_to_owasp(cwe_id: Optional[str]) -> str:
         if not cwe_id:
             return "Unmapped"
         return ComplianceMapper.CWE_TO_OWASP.get(cwe_id, "Other")
