@@ -104,6 +104,7 @@ services:
       - SECRET_KEY=${SECRET_KEY:?SECRET_KEY must be set}
       - DEBUG=false
       - MINIO_BUCKET=${MINIO_BUCKET:-kravigil-evidence}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - MINIO_SECURE=false
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-[\"http://localhost\"]}
