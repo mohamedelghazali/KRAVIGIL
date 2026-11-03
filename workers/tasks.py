@@ -30,6 +30,28 @@ from backend.api.websockets.manager import manager
 
 logger = logging.getLogger(__name__)
 
+def set_worker_tenant(db, tenant_id) -> None:
+    db.execute(
+        text("SELECT set_config('app.tenant_id', :tenant_id, false)"),
+        {"tenant_id": str(tenant_id)},
+    )
+    db.commit()
+
+
+def _close_worker_session(db) -> None:
+    try:
+        if db.get_bind().dialect.name == "postgresql":
+            db.rollback()
+            db.execute(
+                text("SELECT set_config('app.tenant_id', '', false), set_config('app.auth_lookup', 'false', false)")
+            )
+            db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        _close_worker_session(db)
+
+
 def broadcast_ws(tenant_id: str, message: dict):
     try:
         loop = asyncio.new_event_loop()
@@ -92,7 +114,7 @@ def run_cloud_scan(self, tenant_id: str, scan_id: str, asset_id: str, provider: 
         tenant_uuid = uuid.UUID(str(tenant_id))
         scan_uuid = uuid.UUID(str(scan_id))
         asset_uuid = uuid.UUID(str(asset_id))
-        db.execute(text("SELECT set_config('app.tenant_id', :tenant_id, true)"), {"tenant_id": str(tenant_uuid)})
+        set_worker_tenant(db, tenant_uuid)
         scan = db.query(Scan).filter(Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid).first()
         if not scan: raise ValueError(f"Scan {scan_id} not found")
 
@@ -141,7 +163,10 @@ from backend.services.scheduler.cron_parser import CronParser
 def run_network_scan(self, tenant_id: str, scan_id: str, asset_id: str, target_ip: str, ports: list[int]):
     db = SessionLocal()
     try:
-        db.execute(text("SELECT set_config('app.tenant_id', :tenant_id, true)"), {"tenant_id": str(tenant_id)})
+        tenant_uuid = uuid.UUID(str(tenant_id))
+        scan_uuid = uuid.UUID(str(scan_id))
+        asset_uuid = uuid.UUID(str(asset_id))
+        set_worker_tenant(db, tenant_uuid)
         scan = db.query(Scan).filter(Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid).first()
         if scan is None:
             raise ValueError("Scan not found for tenant")
@@ -164,7 +189,7 @@ def run_network_scan(self, tenant_id: str, scan_id: str, asset_id: str, target_i
                     db.add(observation)
             db.commit()
 
-        scan = db.query(Scan).filter(Scan.id == scan_id, Scan.tenant_id == tenant_id).first()
+        scan = db.query(Scan).filter(Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid).first()
         scan.status = "COMPLETED"
         scan.finished_at = datetime.utcnow()
         db.commit()
@@ -392,10 +417,7 @@ def check_scheduled_scans():
             ScheduledScan.next_run <= now,
         ).all()
         for schedule in due_schedules:
-            db.execute(
-                text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
-                {"tenant_id": str(schedule.tenant_id)},
-            )
+            set_worker_tenant(db, schedule.tenant_id)
             target = db.query(Target).filter(
                 Target.id == schedule.target_id,
                 Target.tenant_id == schedule.tenant_id,
