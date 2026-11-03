@@ -112,6 +112,7 @@ services:
       - MINIO_SECURE=false
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-[\"http://localhost\"]}
+      - ALLOWED_SCAN_CIDRS=${ALLOWED_SCAN_CIDRS:-[]}
       - SMTP_HOST=${SMTP_HOST:-}
       - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_USERNAME=${SMTP_USERNAME:-}
