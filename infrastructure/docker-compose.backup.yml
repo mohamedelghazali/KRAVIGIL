@@ -24,4 +24,14 @@ services:
         condition: service_healthy
     networks:
       - data_plane
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import os,time,sys; p='/tmp/last-success'; sys.exit(0 if os.path.exists(p) and time.time()-os.path.getmtime(p) < 2*int(os.getenv('BACKUP_INTERVAL_SECONDS','86400')) else 1)"
+      interval: 5m
+      timeout: 10s
+      retries: 3
+      start_period: 10m
     restart: unless-stopped
