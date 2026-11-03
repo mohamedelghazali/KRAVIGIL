@@ -8,6 +8,7 @@ from ai.providers.gemini_provider import GeminiProvider
 from backend.database.models.ai_record import AIAnalysisRecord
 from backend.database.models.finding import Finding
 from backend.database.session import SessionLocal
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,10 @@ class AIGateway:
         clean_evidence = self.guard.sanitize_evidence(raw_evidence)
         db = SessionLocal()
         try:
+            db.execute(
+                text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
+                {"tenant_id": str(tenant_uuid)},
+            )
             finding = db.query(Finding).filter(
                 Finding.id == finding_uuid,
                 Finding.tenant_id == tenant_uuid,
@@ -70,6 +75,10 @@ class AIGateway:
                 finding_uuid, exc, exc_info=True,
             )
             try:
+                db.execute(
+                    text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
+                    {"tenant_id": str(tenant_uuid)},
+                )
                 db.add(AIAnalysisRecord(
                     id=uuid.uuid4(),
                     tenant_id=tenant_uuid,
