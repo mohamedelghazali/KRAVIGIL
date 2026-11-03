@@ -15,6 +15,7 @@
         <router-link to="/users">Users</router-link>
         <router-link to="/audit-logs">Audit Logs</router-link>
         <router-link to="/settings">Settings</router-link>
+        <router-link to="/user-settings">User Settings</router-link>
       </div>
       <button @click="handleLogout" class="logout-btn">Logout</button>
     </nav>
