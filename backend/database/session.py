@@ -23,13 +23,3 @@ def get_db() -> Generator[Session, None, None]:
     finally:
         db.close()
 
-def get_tenant_db(tenant_id: str) -> Generator[Session, None, None]:
-    db = SessionLocal()
-    try:
-        db.execute(
-            text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
-            {"tenant_id": str(tenant_id)}
-        )
-        yield db
-    finally:
-        db.close()
