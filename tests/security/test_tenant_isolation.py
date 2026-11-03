@@ -95,3 +95,19 @@ def test_tenant_isolation():
     assert res_list_b.status_code == 200
     assert len(res_list_b.json()) == 1
     assert res_list_b.json()[0]["name"] == "Target B"
+
+    target_b_id = res_b.json()["id"]
+    cross_tenant_get = client.get(f"/api/v1/targets/{target_b_id}", headers=headers_a)
+    assert cross_tenant_get.status_code == 404
+
+    cross_tenant_update = client.put(
+        f"/api/v1/targets/{target_b_id}",
+        json={"name": "Hijacked Target"},
+        headers=headers_a,
+    )
+    assert cross_tenant_update.status_code == 404
+
+    cross_tenant_delete = client.delete(
+        f"/api/v1/targets/{target_b_id}", headers=headers_a
+    )
+    assert cross_tenant_delete.status_code == 404
