@@ -53,7 +53,7 @@ class TargetCreate(BaseModel):
             raise ValueError("Invalid domain name")
         return ascii_name.lower()
 
-    @root_validator
+    @root_validator(skip_on_failure=True)
     def require_target(cls, values):
         if not values.get("ip_address") and not values.get("domain"):
             raise ValueError("At least one of ip_address or domain is required")
