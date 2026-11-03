@@ -21,3 +21,6 @@ include = ["backend*", "workers*", "engines*", "ai*", "agents*", "shared*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "integration: tests that exercise external services or service boundaries",
+]
