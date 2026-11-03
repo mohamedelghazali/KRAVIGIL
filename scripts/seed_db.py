@@ -26,8 +26,10 @@ def seed_database():
         else:
             logger.info("Default Organization already exists")
 
-        admin_email = os.getenv("ADMIN_EMAIL", "admin@kravigil.local")
-        admin_password = os.getenv("ADMIN_PASSWORD", "AdminPassword123!")
+        admin_email = os.getenv("ADMIN_EMAIL")
+        admin_password = os.getenv("ADMIN_PASSWORD")
+        if not admin_email or not admin_password:
+            raise RuntimeError("ADMIN_EMAIL and ADMIN_PASSWORD must be configured before seeding")
 
         admin = db.query(User).filter(User.email == admin_email).first()
         if not admin:
@@ -41,7 +43,7 @@ def seed_database():
             )
             db.add(admin)
             db.commit()
-            logger.info(f"Created Admin User: {admin_email} / {admin_password}")
+            logger.info("Created initial administrator account: %s", admin_email)
         else:
             logger.info(f"Admin User {admin_email} already exists")
 
