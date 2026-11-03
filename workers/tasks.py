@@ -240,7 +240,7 @@ def run_web_scan(self, tenant_id: str, scan_id: str, asset_id: str, target_url: 
         return {"status": "completed", "scan_id": scan_id, "findings": len(results)}
     except Exception as exc:
         db.rollback()
-        scan = db.query(Scan).filter(Scan.id == scan_id, Scan.tenant_id == tenant_id).first()
+        scan = db.query(Scan).filter(Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid).first()
         if scan is not None:
             scan.status = "FAILED"
             scan.error_message = str(exc)[:2048]
@@ -308,7 +308,7 @@ def run_sast_scan(self, tenant_id: str, scan_id: str, asset_id: str, code_path: 
 def correlate_findings(tenant_id: str, scan_id: str, asset_id: str):
     db = SessionLocal()
     try:
-        db.execute(text("SELECT set_config('app.tenant_id', :tenant_id, true)"), {"tenant_id": str(tenant_id)})
+        set_worker_tenant(db, tenant_id)
         observations = db.query(Observation).filter(
             Observation.tenant_id == tenant_uuid,
             Observation.scan_id == uuid.UUID(str(scan_id)),
