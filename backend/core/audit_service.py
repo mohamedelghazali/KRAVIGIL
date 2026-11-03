@@ -14,9 +14,10 @@ class AuditService:
         try:
             if tenant_id is not None and session.get_bind().dialect.name == "postgresql":
                 session.execute(
-                    text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
+                    text("SELECT set_config('app.tenant_id', :tenant_id, false)"),
                     {"tenant_id": str(tenant_id)},
                 )
+                session.commit()
             record = AuditLog(
                 tenant_id=tenant_id,
                 actor_id=actor_id,
@@ -35,4 +36,13 @@ class AuditService:
             session.rollback()
             logger.error("Audit event persistence failed: %s", exc, exc_info=True)
         finally:
+            if session.get_bind().dialect.name == "postgresql":
+                try:
+                    session.rollback()
+                    session.execute(
+                        text("SELECT set_config('app.tenant_id', '', false), set_config('app.auth_lookup', 'false', false)")
+                    )
+                    session.commit()
+                except Exception:
+                    session.rollback()
             session.close()
