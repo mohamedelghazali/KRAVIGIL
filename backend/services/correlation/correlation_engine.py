@@ -1,6 +1,7 @@
 import logging
 import uuid
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
@@ -23,8 +24,8 @@ class CorrelationEngine:
         service_id: str = "",
         severity: str = "medium",
         confidence: str = "potential",
-        cve_id: str = None,
-        cwe_id: str = None,
+        cve_id: Optional[str] = None,
+        cwe_id: Optional[str] = None,
     ) -> uuid.UUID:
         now = datetime.utcnow()
         raw_data = obs.raw_data or {}
