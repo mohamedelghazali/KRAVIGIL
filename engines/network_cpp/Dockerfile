@@ -50,9 +50,13 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+RUN groupadd --system --gid 10001 kravigil && useradd --system --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin kravigil
+
 WORKDIR /app
 
 COPY --from=builder /app/engines/network_cpp/build/network_engine /app/network_engine
+RUN chown -R 10001:10001 /app
+USER 10001:10001
 
 EXPOSE 50051
 
