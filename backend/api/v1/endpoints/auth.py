@@ -111,7 +111,6 @@ def login_mfa(request: Request, mfa_in: MFAVerifyRequest, db: Session = Depends(
         raise HTTPException(status_code=400, detail="MFA not required for this token")
 
     _set_auth_lookup(db)
-    _set_tenant_context(db, session.tenant_id)
     user = db.query(User).filter(User.id == payload.get("sub")).first()
     if not user or not user.is_mfa_enabled:
         raise HTTPException(status_code=401, detail="Invalid MFA state")
@@ -155,6 +154,7 @@ def refresh_token(request: Request, refresh_in: RefreshRequest, db: Session = De
     if not session or session.expires_at < datetime.utcnow():
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
 
+    _set_tenant_context(db, session.tenant_id)
     user = db.query(User).filter(User.id == payload.get("sub")).first()
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found or inactive")
