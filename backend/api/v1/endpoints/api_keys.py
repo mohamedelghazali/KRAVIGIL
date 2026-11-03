@@ -103,3 +103,45 @@ def revoke_api_key(
         tenant_id=current_user.tenant_id,
         actor_id=current_user.id
     )
+
+@router.post("/{key_id}/rotate", response_model=APIKeyCreateResponse)
+def rotate_api_key(
+    key_id: uuid.UUID,
+    current_user: User = Depends(require_role(["admin"])),
+    db: Session = Depends(get_tenant_db)
+):
+    old_key = db.query(APIKey).filter(
+        APIKey.id == key_id,
+        APIKey.tenant_id == current_user.tenant_id
+    ).first()
+    if not old_key:
+        raise HTTPException(status_code=404, detail="API Key not found")
+    if not old_key.is_active:
+        raise HTTPException(status_code=400, detail="API Key is already inactive")
+
+    raw_key, prefix, key_hash = APIKey.generate_key()
+    new_key = APIKey(
+        tenant_id=current_user.tenant_id,
+        name=old_key.name,
+        prefix=prefix,
+        key_hash=key_hash,
+        expires_at=old_key.expires_at
+    )
+    old_key.is_active = False
+    db.add(new_key)
+    try:
+        db.commit()
+        db.refresh(new_key)
+    except Exception:
+        db.rollback()
+        raise
+
+    AuditService.log_event(
+        action="API_KEY_ROTATED",
+        resource_type="api_key",
+        resource_id=str(new_key.id),
+        tenant_id=current_user.tenant_id,
+        actor_id=current_user.id,
+        details={"old_key_id": str(key_id)}
+    )
+    return {"id": new_key.id, "name": new_key.name, "raw_key": raw_key, "prefix": prefix}
