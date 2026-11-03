@@ -39,7 +39,7 @@ The main CI workflow passed on that commit:
 - C++ network engine build and unit tests: passed.
 - Backend and network-engine container builds in the main CI workflow: passed.
 
-The separate multi-image Docker verification is still running: the backend image has passed; worker and network-engine image verification have not yet both completed. Do not treat this as a fully completed multi-image release build until that workflow succeeds.
+The separate Docker verification workflow was hardened after the earlier run was cancelled: image builds now run as three independent matrix jobs (backend, worker, network engine), `fail-fast` is disabled, in-flight runs are not cancelled by newer pushes, and each job has a 60-minute timeout. The hardened workflow is pending on commit `df6878e3ef6e5200a5796e98fe156c484c3d0b84`; no result is claimed until all three image jobs complete.
 
 ## Release blockers
 
@@ -49,7 +49,7 @@ The repository contains **87 Python source files** that are explicit scaffolds w
 
 \`KRAVIGIL module scaffold. Implementation pending.\`
 
-These are not functional implementations. Each must either be implemented and tested against an acceptance criterion, or formally removed from the shipped scope. A placeholder must never be counted as a completed module.
+These are not functional implementations. Each must either be implemented and tested against an acceptance criterion, or formally removed from the shipped scope. A placeholder must never be counted as a completed module. A blocking inventory and closure checklist is tracked in [issue #1](https://github.com/mohamedelghazali/KRAVIGIL/issues/1).
 
 ### 2. Production object storage
 
@@ -80,6 +80,6 @@ No production deployment has been performed from this review. The following rema
 
 ## Release decision
 
-**NO-GO.** KRAVIGIL is not certified for production release until the scaffold inventory is resolved, backend and container workflows pass on the same commit, production object storage is migrated/configured and verified, and an isolated backup/restore acceptance run succeeds.
+**NO-GO.** KRAVIGIL is not certified for production release until the scaffold inventory in [issue #1](https://github.com/mohamedelghazali/KRAVIGIL/issues/1) is resolved, backend and all three container-image workflows pass on the same commit, production object storage is migrated/configured and verified, and an isolated backup/restore acceptance run succeeds.
 
 A green CI run is necessary but not sufficient. Reassess this document after every blocker is closed and attach the exact commit SHA and workflow run URLs to the release record.
