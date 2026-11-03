@@ -1,3 +1,4 @@
+import os
 import uuid
 
 import pytest
@@ -16,6 +17,11 @@ engine = create_engine(
     connect_args={"check_same_thread": False},
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+@pytest.fixture(autouse=True)
+def provide_test_ai_credentials(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-api-key")
 
 
 @pytest.fixture(scope="session", autouse=True)
