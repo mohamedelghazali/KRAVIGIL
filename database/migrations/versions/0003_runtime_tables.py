@@ -89,6 +89,21 @@ def upgrade() -> None:
     op.create_index("ix_ai_analysis_records_finding_id", "ai_analysis_records", ["finding_id"])
     op.create_index("ix_ai_records_tenant_finding", "ai_analysis_records", ["tenant_id", "finding_id"])
 
+    for table in ("user_sessions", "password_reset_tokens", "ai_analysis_records"):
+        op.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY")
+        op.execute(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY")
+        op.execute(
+            f"CREATE POLICY tenant_isolation_{table} ON {table} "
+            "FOR ALL USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid) "
+            "WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)"
+        )
+
+    for table in ("users", "api_keys", "user_sessions", "password_reset_tokens"):
+        op.execute(
+            f"CREATE POLICY auth_lookup_{table} ON {table} "
+            "FOR SELECT USING (current_setting('app.auth_lookup', true) = 'true')"
+        )
+
 
 def downgrade() -> None:
     op.drop_table("ai_analysis_records")
