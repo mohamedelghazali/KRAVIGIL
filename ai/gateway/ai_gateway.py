@@ -35,9 +35,10 @@ class AIGateway:
         db = SessionLocal()
         try:
             db.execute(
-                text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
+                text("SELECT set_config('app.tenant_id', :tenant_id, false)"),
                 {"tenant_id": str(tenant_uuid)},
             )
+            db.commit()
             finding = db.query(Finding).filter(
                 Finding.id == finding_uuid,
                 Finding.tenant_id == tenant_uuid,
@@ -79,6 +80,7 @@ class AIGateway:
                     text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
                     {"tenant_id": str(tenant_uuid)},
                 )
+                db.commit()
                 db.add(AIAnalysisRecord(
                     id=uuid.uuid4(),
                     tenant_id=tenant_uuid,
@@ -95,4 +97,12 @@ class AIGateway:
             raise
         finally:
             self.provider.close()
+            try:
+                db.rollback()
+                db.execute(
+                    text("SELECT set_config('app.tenant_id', '', false), set_config('app.auth_lookup', 'false', false)")
+                )
+                db.commit()
+            except Exception:
+                db.rollback()
             db.close()
