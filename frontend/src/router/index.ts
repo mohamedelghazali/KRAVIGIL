@@ -12,6 +12,7 @@ import UserManagement from '../views/UserManagement.vue'
 import AuditLogs from '../views/AuditLogs.vue'
 import Schedules from '../views/Schedules.vue'
 import Agents from '../views/Agents.vue'
+import UserSettings from '../views/UserSettings.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -28,7 +29,8 @@ const router = createRouter({
     { path: '/reports', component: Reports, meta: { requiresAuth: true } },
     { path: '/users', component: UserManagement, meta: { requiresAuth: true, requiresAdmin: true } },
     { path: '/audit-logs', component: AuditLogs, meta: { requiresAuth: true, requiresAdmin: true } },
-    { path: '/settings', component: Settings, meta: { requiresAuth: true } }
+    { path: '/settings', component: Settings, meta: { requiresAuth: true } },
+    { path: '/user-settings', component: UserSettings, meta: { requiresAuth: true } }
   ]
 })
 
