@@ -154,6 +154,14 @@ services:
       - OTX_API_KEY=${OTX_API_KEY:-}
       - ALLOWED_SCAN_CIDRS=${ALLOWED_SCAN_CIDRS:-[]}
       - SAST_WORKSPACE_ROOT=/workspace
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN:-}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID:-}
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID:-}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET:-}
+      - GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/gcp-credentials.json
       - MINIO_SECURE=false
       - KRAVIGIL_ENGINE_HOST=network_engine
       - KRAVIGIL_ENGINE_AUTH_TOKEN=${KRAVIGIL_ENGINE_AUTH_TOKEN:?KRAVIGIL_ENGINE_AUTH_TOKEN must be set}
@@ -161,6 +169,7 @@ services:
     volumes:
       - ./certs/network-engine/ca.crt:/run/secrets/network-engine-ca.crt:ro
       - ../workspace:/workspace:ro
+      - ${GOOGLE_APPLICATION_CREDENTIALS_HOST_PATH:-/dev/null}:/run/secrets/gcp-credentials.json:ro
     depends_on:
       redis:
         condition: service_healthy
