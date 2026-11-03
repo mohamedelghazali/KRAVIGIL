@@ -16,7 +16,7 @@ from backend.database.session import get_db
 from backend.database.models.user import User
 from backend.database.models.api_key import APIKey
 from backend.database.models.session import UserSession
-from backend.security.rbac import has_any_role
+from backend.security.rbac import Permission, has_any_role, has_permission
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -152,3 +152,12 @@ def require_role(required_roles: list[str]):
             raise HTTPException(status_code=403, detail="Insufficient permissions")
         return current_user
     return role_checker
+
+
+def require_permission(permission: Permission | str):
+    """Build a FastAPI dependency that enforces one explicit RBAC permission."""
+    def permission_checker(current_user: User = Depends(get_current_user)) -> User:
+        if not has_permission(current_user.role, permission):
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
+        return current_user
+    return permission_checker
