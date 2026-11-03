@@ -152,6 +152,14 @@ public:
         scanner->stop();
         work_guard.reset();
 
+        bool rpc_cancelled = false;
+        {
+            std::lock_guard<std::mutex> lock(scans_mutex_);
+            active_scans_.erase(request->scan_id());
+            rpc_cancelled = cancelled_scan_ids_.erase(request->scan_id()) > 0;
+        }
+        const bool cancelled = context_cancelled || rpc_cancelled;
+
         if (cancelled || broken_stream) {
             io_context.stop();
         }
@@ -160,14 +168,6 @@ public:
                 worker.join();
             }
         }
-
-        bool rpc_cancelled = false;
-        {
-            std::lock_guard<std::mutex> lock(scans_mutex_);
-            active_scans_.erase(request->scan_id());
-            rpc_cancelled = cancelled_scan_ids_.erase(request->scan_id()) > 0;
-        }
-        const bool cancelled = context_cancelled || rpc_cancelled;
 
         if (!cancelled && !broken_stream) {
             ScanEvent event;
