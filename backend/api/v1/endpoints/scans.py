@@ -16,6 +16,8 @@ from backend.core.config import get_settings
 import ipaddress
 from workers.tasks import run_network_scan, run_web_scan, run_sast_scan, run_cloud_scan
 from workers.celery_app import celery_app
+from engines.network_cpp.grpc_client import NetworkEngineClient
+import os
 from pydantic import BaseModel, Field, validator
 import uuid
 
@@ -211,7 +213,15 @@ def cancel_scan(
         raise HTTPException(status_code=400, detail="Scan cannot be cancelled in its current state")
 
     if scan.task_id:
-        celery_app.control.revoke(scan.task_id, terminate=False)
+        if scan.scan_type == "NETWORK":
+            try:
+                with NetworkEngineClient(host=os.getenv("KRAVIGIL_ENGINE_HOST", "network_engine")) as client:
+                    if not client.cancel_scan(str(scan.id)):
+                        celery_app.control.revoke(scan.task_id, terminate=False)
+            except Exception:
+                celery_app.control.revoke(scan.task_id, terminate=False)
+        else:
+            celery_app.control.revoke(scan.task_id, terminate=False)
 
     scan.status = "CANCELLED"
     scan.finished_at = datetime.utcnow()
