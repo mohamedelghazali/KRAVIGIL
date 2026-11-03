@@ -5,7 +5,7 @@ from backend.database.models.target import Target
 from backend.database.models.asset import Asset
 from backend.database.models.scan import Scan
 from backend.database.models.user import User
-from backend.database.session import get_tenant_db
+from backend.database.tenant import get_tenant_db
 from backend.core.security import get_current_user, require_role
 from backend.core.exceptions import KravigilException, ScopeViolationException
 from backend.core.audit_service import AuditService
