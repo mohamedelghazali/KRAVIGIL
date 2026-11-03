@@ -31,10 +31,11 @@ from backend.api.websockets.manager import manager
 logger = logging.getLogger(__name__)
 
 def set_worker_tenant(db, tenant_id) -> None:
-    db.execute(
-        text("SELECT set_config('app.tenant_id', :tenant_id, false)"),
-        {"tenant_id": str(tenant_id)},
-    )
+    if db.get_bind().dialect.name == "postgresql":
+        db.execute(
+            text("SELECT set_config('app.tenant_id', :tenant_id, false)"),
+            {"tenant_id": str(tenant_id)},
+        )
 
 
 def _close_worker_session(db) -> None:
@@ -81,7 +82,7 @@ def trigger_notifications(db, tenant_id: str, event_type: str, data: dict):
             )
             
         slack_setting = db.query(TenantSetting).filter(
-            TenantSetting.tenant_id == tenant_id,
+            TenantSetting.tenant_id == tenant_uuid,
             TenantSetting.key == "slack_alerts"
         ).first()
         
@@ -310,10 +311,12 @@ def run_sast_scan(self, tenant_id: str, scan_id: str, asset_id: str, code_path: 
 def correlate_findings(tenant_id: str, scan_id: str, asset_id: str):
     db = SessionLocal()
     try:
-        set_worker_tenant(db, tenant_id)
+        tenant_uuid = uuid.UUID(str(tenant_id))
+        scan_uuid = uuid.UUID(str(scan_id))
+        set_worker_tenant(db, tenant_uuid)
         observations = db.query(Observation).filter(
             Observation.tenant_id == tenant_uuid,
-            Observation.scan_id == uuid.UUID(str(scan_id)),
+            Observation.scan_id == scan_uuid,
         ).all()
         engine = CorrelationEngine(db)
         severity_order = {"CRITICAL": "critical", "HIGH": "high", "MEDIUM": "medium", "LOW": "low", "INFO": "info"}
@@ -379,9 +382,11 @@ def generate_report(tenant_id: str, report_id: str):
 def analyze_finding_with_ai(tenant_id: str, finding_id: str):
     db = SessionLocal()
     try:
-        set_worker_tenant(db, tenant_id)
+        tenant_uuid = uuid.UUID(str(tenant_id))
+        finding_uuid = uuid.UUID(str(finding_id))
+        set_worker_tenant(db, tenant_uuid)
         finding = db.query(Finding).filter(
-            Finding.id == uuid.UUID(str(finding_id)),
+            Finding.id == finding_uuid,
             Finding.tenant_id == tenant_uuid,
         ).first()
         if finding is None:
