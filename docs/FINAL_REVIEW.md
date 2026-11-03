@@ -39,7 +39,7 @@ The main CI workflow passed on that commit:
 - C++ network engine build and unit tests: passed.
 - Backend and network-engine container builds in the main CI workflow: passed.
 
-The separate Docker verification workflow was hardened after the earlier run was cancelled: image builds now run as three independent matrix jobs (backend, worker, network engine), `fail-fast` is disabled, in-flight runs are not cancelled by newer pushes, and each job has a 60-minute timeout. The hardened workflow is pending on commit `df6878e3ef6e5200a5796e98fe156c484c3d0b84`; no result is claimed until all three image jobs complete.
+The separate Docker verification workflow was hardened after the earlier run was cancelled: image builds now run as three independent matrix jobs (backend, worker, network engine), `fail-fast` is disabled, in-flight runs are not cancelled by newer pushes, and each job has a 60-minute timeout. The hardened workflow was triggered on review commit `8203fca64edb5d411a2e27e9226776516477dd55` (run [41731335426](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/41731335426)). At the time of this review it was still pending and had not exposed its matrix jobs; no image-build result is claimed until backend, worker, and network-engine jobs all complete.
 
 ## Release blockers
 
