@@ -2,30 +2,25 @@
 
 **Enterprise Vulnerability Assessment & Security Intelligence Platform**
 
-KRAVIGIL is a distributed, multi-engine platform designed for high-accuracy vulnerability discovery, evidence-based validation, and enterprise-grade security management.
-
 ## 🚀 One-Command Deployment
 
 ```bash
-# 1. Configure environment
 cp .env.example .env
-# Edit .env with your secrets
-
-# 2. Launch the entire platform
 ./scripts/go_live.sh
 ```
 
-Access the dashboard at `http://localhost`.
-
 ## 🌟 Features
 
-- **Multi-Engine Scans**: C++ (Network), Nuclei (Web), Semgrep (SAST), Gitleaks (Secrets), Trivy (Containers), Prowler (Cloud).
-- **Scheduled Scans**: Cron-based automated scanning via Celery Beat.
-- **Evidence Storage**: Immutable storage (MinIO Object Lock) with SHA-256 verification.
-- **Real-Time Alerts**: Webhooks, Slack, Email, and Syslog (CEF format for SIEM).
-- **AI-Powered Analysis**: Gemini API integration with prompt injection protection.
-- **Zero Trust**: PostgreSQL RLS, strict network segmentation, seccomp profiles.
-- **High Availability**: Cross-cluster MinIO replication and multi-replica deployments.
+- Multi-Engine Scans (C++, Nuclei, Semgrep, Trivy, Gitleaks, Prowler)
+- **Auth**: JWT + Refresh Tokens, MFA (TOTP), Password Reset, Session Management, Password Changes
+- **Scheduled Scans**: Cron-based automated scanning via Celery Beat
+- **Evidence Storage**: Immutable storage (MinIO Object Lock) with SHA-256
+- **Real-Time Alerts**: Webhooks, Slack, Email, Syslog (CEF for SIEM)
+- **AI-Powered Analysis**: Gemini API with prompt injection protection
+- **Zero Trust**: PostgreSQL RLS, strict network segmentation, seccomp profiles
+- **High Availability**: Cross-cluster MinIO replication and multi-replica deployments
+- **Threat Intelligence**: AlienVault OTX integration for IOC feeds
+- **Observability**: OpenTelemetry, Prometheus, Grafana dashboards included
 
 ## 📚 Documentation
 
@@ -36,11 +31,11 @@ Access the dashboard at `http://localhost`.
 - [MinIO Replication](docs/operations/MINIO_REPLICATION.md)
 - [Operations Guide](docs/OPERATIONS.md)
 
-## 🛠️ Technology Stack
+## 🛠️ Tech Stack
 
 - **Backend**: Python 3.11, FastAPI, SQLAlchemy 2.0, Celery
-- **Frontend**: Vue 3, TypeScript, Pinia, Vite
-- **Network Engine**: C++17, Boost.Asio, gRPC, Protocol Buffers
+- **Frontend**: Vue 3, TypeScript, Pinia
+- **Network Engine**: C++17, Boost.Asio, gRPC
 - **Databases**: PostgreSQL 15, Redis 7, MinIO
 - **Observability**: OpenTelemetry, Prometheus, Grafana
 - **AI**: Google Gemini API
