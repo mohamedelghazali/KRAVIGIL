@@ -20,13 +20,15 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ /app/backend/
+COPY engines/ /app/engines/
 COPY workers/ /app/workers/
 COPY shared/ /app/shared/
 COPY ai/ /app/ai/
+RUN python -m grpc_tools.protoc -I /app/shared/protocols --python_out=/app/shared/protocols --grpc_python_out=/app/shared/protocols /app/shared/protocols/network_engine.proto
 
 RUN useradd -m -r -s /bin/bash kravigil && chown -R kravigil:kravigil /app
 USER kravigil
 
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app:/app/shared/protocols
 
 CMD ["celery", "-A", "workers.celery_app", "worker", "--loglevel=info", "--concurrency=4"]
