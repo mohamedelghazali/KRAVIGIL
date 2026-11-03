@@ -19,8 +19,16 @@ class Settings(BaseSettings):
     MINIO_BUCKET: str
     MINIO_SECURE: bool = True
 
-    ALLOWED_ORIGINS: list[str] = ["*"]
-    ALLOWED_HOSTS: list[str] = ["*"]
+    ALLOWED_ORIGINS: list[str] = ["http://localhost", "http://localhost:5173"]
+    ALLOWED_HOSTS: list[str] = ["localhost", "127.0.0.1"]
+
+    FRONTEND_URL: str = "http://localhost"
+    SMTP_HOST: str | None = None
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str | None = None
+    SMTP_PASSWORD: str | None = None
+    SMTP_FROM_ADDRESS: str | None = None
+    SMTP_USE_TLS: bool = True
 
     model_config = SettingsConfigDict(
         env_file=".env", 
