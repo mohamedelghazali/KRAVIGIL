@@ -130,7 +130,7 @@ void AsyncScanner::try_connect(uint32_t port) {
                 return;
             }
             boost::system::error_code ignored;
-            timer->cancel(ignored);
+            timer->cancel();
             self->in_flight_.fetch_sub(1);
             if (!self->stopped_) {
                 self->callback_(port, !ec);
@@ -140,7 +140,7 @@ void AsyncScanner::try_connect(uint32_t port) {
     } catch (const std::exception&) {
         if (!completed->exchange(true)) {
             boost::system::error_code ignored;
-            timer->cancel(ignored);
+            timer->cancel();
             socket->close(ignored);
             in_flight_.fetch_sub(1);
             if (!stopped_) {
