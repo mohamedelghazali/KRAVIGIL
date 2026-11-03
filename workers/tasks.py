@@ -35,7 +35,6 @@ def set_worker_tenant(db, tenant_id) -> None:
         text("SELECT set_config('app.tenant_id', :tenant_id, false)"),
         {"tenant_id": str(tenant_id)},
     )
-    db.commit()
 
 
 def _close_worker_session(db) -> None:
