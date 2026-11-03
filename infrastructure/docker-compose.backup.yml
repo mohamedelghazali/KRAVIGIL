@@ -1,24 +1,27 @@
-version: '3.8'
-
 services:
   backup:
-    image: docker:24
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - backup_data:/backups/kravigil
+    build:
+      context: ..
+      dockerfile: infrastructure/backup/Dockerfile
     environment:
-      - MINIO_USER=${MINIO_USER}
-      - MINIO_PASSWORD=${MINIO_PASSWORD}
-      - MINIO_ENDPOINT=minio:9000
-      - MINIO_BUCKET=${MINIO_BUCKET:-kravigil-evidence}
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: kravigil_db
+      DB_USER: kravigil_admin
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
+      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:?BACKUP_ENCRYPTION_KEY must be set}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_USER:?MINIO_USER must be set}
+      MINIO_SECRET_KEY: ${MINIO_PASSWORD:?MINIO_PASSWORD must be set}
+      MINIO_BACKUP_BUCKET: ${MINIO_BACKUP_BUCKET:-kravigil-backups}
+      MINIO_SECURE: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     networks:
       - data_plane
-    entrypoint: ["sh", "-c", "echo '0 2 * * * /scripts/backup.sh' | crontab - && crond -f"]
-
-volumes:
-  backup_data:
-
-networks:
-  data_plane:
-    external: true
-    name: infrastructure_data_plane
+    restart: unless-stopped
