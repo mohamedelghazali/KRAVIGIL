@@ -30,7 +30,16 @@ The latest CI runs must be inspected directly before each release decision. The 
 
 Black formatting is currently non-blocking. The latest check reported **84 files would be reformatted**; this is outstanding formatting debt, not a passing formatting check.
 
-Backend tests have exposed and driven fixes for model mappings, UUID handling, test credentials, password hashing compatibility, risk-score expectations, and S3 test infrastructure. Do not mark backend acceptance complete until the latest full test job passes.
+**Latest verified application commit:** `0a99199a` (2026-11-03).
+
+The main CI workflow passed on that commit:
+- Backend/security tests: **19 passed**, PostgreSQL migrations and RLS included; measured coverage **59%**.
+- Ruff and MyPy: passed.
+- Frontend production build: passed.
+- C++ network engine build and unit tests: passed.
+- Backend and network-engine container builds in the main CI workflow: passed.
+
+The separate multi-image Docker verification is still running: the backend image has passed; worker and network-engine image verification have not yet both completed. Do not treat this as a fully completed multi-image release build until that workflow succeeds.
 
 ## Release blockers
 
