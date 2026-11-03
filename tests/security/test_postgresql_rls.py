@@ -51,6 +51,11 @@ def test_postgresql_rls_isolates_tenants_and_app_role_cannot_bypass():
             )
             connection.commit()
 
+            visible_orgs = connection.execute(
+                text("SELECT id FROM organizations ORDER BY name")
+            ).scalars().all()
+            assert visible_orgs == [tenant_a]
+
             visible = connection.execute(
                 text("SELECT id FROM targets ORDER BY name")
             ).scalars().all()
