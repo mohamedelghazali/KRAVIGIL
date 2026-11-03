@@ -79,8 +79,6 @@ services:
       - execution_plane
     cap_drop:
       - ALL
-    cap_add:
-      - NET_RAW
     security_opt:
       - no-new-privileges:true
       - seccomp:./seccomp/network_engine.json
@@ -89,6 +87,12 @@ services:
       - /tmp:size=512m
     mem_limit: 1g
     cpus: 2.0
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/50051'"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
     restart: unless-stopped
 
   backend:
@@ -153,7 +157,7 @@ services:
       db:
         condition: service_healthy
       network_engine:
-        condition: service_started
+        condition: service_healthy
     networks:
       - control_plane
       - data_plane
