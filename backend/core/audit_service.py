@@ -12,7 +12,7 @@ class AuditService:
                   user_agent=None, status_code=None, details=None):
         session = SessionLocal()
         try:
-            if tenant_id is not None:
+            if tenant_id is not None and session.get_bind().dialect.name == "postgresql":
                 session.execute(
                     text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
                     {"tenant_id": str(tenant_id)},
