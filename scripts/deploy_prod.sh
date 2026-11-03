@@ -102,7 +102,7 @@ docker compose "${BASE_COMPOSE[@]}" exec -T db psql -v ON_ERROR_STOP=1 \
   -U kravigil_admin -d kravigil_db \
   -v app_user=kravigil_app -v app_password="$APP_DB_PASSWORD" -v admin_user=kravigil_admin <<'SQL'
 SELECT format('CREATE ROLE %I LOGIN', :'app_user')
-WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'app_user') \\gexec
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'app_user') \gexec
 ALTER ROLE :"app_user" WITH LOGIN PASSWORD :'app_password'
   NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION;
 GRANT CONNECT ON DATABASE kravigil_db TO :"app_user";
