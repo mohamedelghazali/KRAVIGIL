@@ -16,3 +16,4 @@ from backend.database.models.setting import TenantSetting
 from backend.database.models.session import UserSession, PasswordResetToken
 from backend.database.models.schedule import ScheduledScan
 from backend.database.models.ai_record import AIAnalysisRecord
+from backend.database.models.threat_intel import ThreatIndicator
