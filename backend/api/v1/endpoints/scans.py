@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
+from sqlalchemy import text
+from datetime import datetime
 from sqlalchemy.orm import Session
 from typing import List
 from backend.database.models.target import Target
@@ -127,10 +129,10 @@ def cancel_scan(
         raise HTTPException(status_code=400, detail="Scan cannot be cancelled in its current state")
 
     if scan.task_id:
-        celery_app.control.revoke(scan.task_id, terminate=True)
+        celery_app.control.revoke(scan.task_id, terminate=False)
 
     scan.status = "CANCELLED"
-    scan.finished_at = db.execute("SELECT NOW()").scalar()
+    scan.finished_at = datetime.utcnow()
     db.commit()
 
     AuditService.log_event(
