@@ -6,7 +6,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from backend.main import app
-from backend.database.session import get_db, get_tenant_db
+from backend.database.session import get_db
+from backend.database.tenant import get_tenant_db
 from backend.database.models.base import Base
 from backend.core.security import security_service
 
