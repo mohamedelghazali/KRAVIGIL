@@ -7,6 +7,7 @@ set -Eeuo pipefail
 : "${MINIO_TARGET_PASSWORD:?MINIO_TARGET_PASSWORD is required for the target MinIO account}"
 : "${MINIO_BUCKET:=kravigil-evidence}"
 : "${MINIO_BACKUP_BUCKET:=kravigil-backups}"
+: "${BACKUP_RETENTION_DAYS:=30}"
 : "${MINIO_SOURCE_URL:=http://minio:9000}"
 : "${MINIO_TARGET_URL:=http://target-minio:9000}"
 
@@ -22,6 +23,7 @@ docker run --rm \
   -e MC_HOST_target="http://${MINIO_TARGET_USER}:${MINIO_TARGET_PASSWORD}@${MINIO_TARGET_URL#http://}" \
   -e EVIDENCE_BUCKET="$MINIO_BUCKET" \
   -e BACKUP_BUCKET="$MINIO_BACKUP_BUCKET" \
+  -e BACKUP_RETENTION_DAYS="$BACKUP_RETENTION_DAYS" \
   minio/mc:RELEASE.2025-08-13T08-35-41Z /bin/sh -ec '
     mc alias set source "$MC_HOST_source"
     mc alias set target "$MC_HOST_target"
@@ -39,6 +41,17 @@ docker run --rm \
           --replicate "delete,delete-marker,existing-objects"
       fi
       mc replicate status "source/$BUCKET"
+    done
+
+    for ALIAS in source target; do
+      RULES="$(mc ilm rule ls --json "$ALIAS/$BACKUP_BUCKET" 2>/dev/null || true)"
+      if ! printf '%s' "$RULES" | grep -q '"expireDays":'; then
+        mc ilm rule add --expire-days "$BACKUP_RETENTION_DAYS" \
+          --noncurrent-expire-days "$BACKUP_RETENTION_DAYS" "$ALIAS/$BACKUP_BUCKET"
+      fi
+      if ! printf '%s' "$RULES" | grep -q '"expireDeleteMarker":true'; then
+        mc ilm rule add --expire-delete-marker "$ALIAS/$BACKUP_BUCKET"
+      fi
     done
   '
 
