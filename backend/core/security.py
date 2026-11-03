@@ -1,6 +1,9 @@
 import logging
+import secrets
+import hashlib
+import pyotp
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status, Request
@@ -10,6 +13,7 @@ from backend.core.config import get_settings
 from backend.database.session import get_db
 from backend.database.models.user import User
 from backend.database.models.api_key import APIKey
+from backend.database.models.session import UserSession
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -49,45 +53,55 @@ class SecurityService:
             "iat": datetime.utcnow(),
             "nbf": datetime.utcnow(),
             "iss": "kravigil-core",
-            "aud": "kravigil-api"
+            "aud": "kravigil-api",
+            "type": "access"
         })
-        try:
-            return jwt.encode(to_encode, self.settings.SECRET_KEY, algorithm=self.algorithm)
-        except Exception as e:
-            logger.error(f"Token creation failed: {e}")
-            raise HTTPException(status_code=500, detail="Token generation failed")
+        return jwt.encode(to_encode, self.settings.SECRET_KEY, algorithm=self.algorithm)
 
-    def decode_token(self, token: str) -> Dict[str, Any]:
+    def create_refresh_token(self, data: Dict[str, Any]) -> str:
+        to_encode = data.copy()
+        expire = datetime.utcnow() + timedelta(days=7)
+        to_encode.update({
+            "exp": expire,
+            "iat": datetime.utcnow(),
+            "iss": "kravigil-core",
+            "aud": "kravigil-api",
+            "type": "refresh"
+        })
+        return jwt.encode(to_encode, self.settings.SECRET_KEY, algorithm=self.algorithm)
+
+    def decode_token(self, token: str, expected_type: str = "access") -> Dict[str, Any]:
         try:
-            return jwt.decode(
+            payload = jwt.decode(
                 token,
                 self.settings.SECRET_KEY,
                 algorithms=[self.algorithm],
                 audience="kravigil-api",
                 issuer="kravigil-core"
             )
+            if payload.get("type") != expected_type:
+                raise HTTPException(status_code=401, detail="Invalid token type")
+            return payload
         except JWTError as e:
             logger.warning(f"Invalid token: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Could not validate credentials",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+            raise HTTPException(status_code=401, detail="Could not validate credentials")
+
+    def generate_mfa_secret(self) -> str:
+        return pyotp.random_base32()
+
+    def verify_mfa_token(self, secret: str, token: str) -> bool:
+        return pyotp.TOTP(secret).verify(token)
 
 security_service = SecurityService()
 
 def get_current_user(request: Request, token: Optional[str] = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
     api_key_header = request.headers.get("X-API-Key")
     if api_key_header:
-        import hashlib
         key_hash = hashlib.sha256(api_key_header.encode()).hexdigest()
         api_key = db.query(APIKey).filter(APIKey.key_hash == key_hash, APIKey.is_active == True).first()
         
-        if not api_key:
-            raise HTTPException(status_code=401, detail="Invalid API Key")
-            
-        if api_key.expires_at and api_key.expires_at < datetime.utcnow():
-            raise HTTPException(status_code=401, detail="API Key expired")
+        if not api_key or (api_key.expires_at and api_key.expires_at < datetime.utcnow()):
+            raise HTTPException(status_code=401, detail="Invalid or expired API Key")
             
         user = db.query(User).filter(User.tenant_id == api_key.tenant_id).first()
         if not user:
@@ -97,12 +111,8 @@ def get_current_user(request: Request, token: Optional[str] = Depends(oauth2_sch
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    payload = security_service.decode_token(token)
-    user_id: str = payload.get("sub")
-    tenant_id: str = payload.get("tenant")
-    
-    if not user_id or not tenant_id:
-        raise HTTPException(status_code=401, detail="Invalid token claims")
+    payload = security_service.decode_token(token, "access")
+    user_id = payload.get("sub")
     
     user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
     if not user:
