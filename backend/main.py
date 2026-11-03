@@ -10,8 +10,6 @@ from backend.core.telemetry import setup_telemetry
 from backend.core.metrics import setup_metrics
 from backend.api.v1.router import api_router
 from backend.api.websockets.scans import scan_websocket_endpoint
-from backend.database.session import engine
-from backend.database.models.base import Base
 import backend.database.models
 
 setup_logging()
@@ -49,12 +47,7 @@ async def websocket_scans(websocket: WebSocket, token: str = None):
 
 @app.on_event("startup")
 async def startup_event():
-    logger.info("KRAVIGIL Core starting up")
-    try:
-        Base.metadata.create_all(bind=engine)
-    except Exception as e:
-        logger.critical(f"Database init failed: {e}")
-        raise
+    logger.info("KRAVIGIL Core starting up; schema must be managed by Alembic migrations")
 
 @app.on_event("shutdown")
 async def shutdown_event():
