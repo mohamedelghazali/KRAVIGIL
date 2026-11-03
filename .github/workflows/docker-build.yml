@@ -8,7 +8,8 @@ on:
 
 concurrency:
   group: kravigil-docker-${{ github.ref }}
-  cancel-in-progress: true
+  # Never cancel an in-flight image verification; every image must finish building.
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -16,6 +17,7 @@ permissions:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
     - uses: actions/checkout@v3
     
