@@ -177,14 +177,20 @@ def forgot_password(req: ForgotPasswordRequest, background_tasks: BackgroundTask
     db.add(reset_token)
     db.commit()
 
-    reset_link = f"https://kravigil.yourdomain.com/reset-password?token={raw_token}"
-    
+    if not settings.SMTP_HOST or not settings.SMTP_FROM_ADDRESS:
+        logger.error("Password reset email is not configured; SMTP_HOST and SMTP_FROM_ADDRESS are required")
+        db.delete(reset_token)
+        db.commit()
+        return {"status": "accepted"}
+
+    reset_link = f"{settings.FRONTEND_URL.rstrip('/')}/reset-password?token={raw_token}"
     email_config = {
-        "host": "smtp.example.com",
-        "port": 587,
-        "username": "noreply@kravigil.com",
-        "password": "smtp_password",
-        "from_address": "noreply@kravigil.com"
+        "host": settings.SMTP_HOST,
+        "port": settings.SMTP_PORT,
+        "username": settings.SMTP_USERNAME,
+        "password": settings.SMTP_PASSWORD,
+        "from_address": settings.SMTP_FROM_ADDRESS,
+        "use_tls": settings.SMTP_USE_TLS,
     }
     background_tasks.add_task(
         EmailDispatcher.send_alert,
