@@ -10,10 +10,13 @@ RUN apt-get update && apt-get install -y \
     libprotobuf-dev \
     protobuf-compiler \
     libgrpc++-dev \
+    libgrpc-dev \
     protobuf-compiler-grpc \
     pkg-config \
     python3 \
     python3-pip \
+    libgtest-dev \
+    libgmock-dev \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip3 install grpcio-tools
@@ -28,9 +31,10 @@ RUN python3 -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. network_
 RUN protoc -I . --cpp_out=. --grpc_out=. --plugin=protoc-gen-grpc=`which grpc_cpp_plugin` network_engine.proto
 
 WORKDIR /app/engines/network_cpp
-RUN mkdir build && cd build && \
-    cmake .. && \
-    make -j2
+RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+    -DgRPC_DIR=/usr/lib/x86_64-linux-gnu/cmake/gRPC \
+    -DCMAKE_PREFIX_PATH=/usr/lib/x86_64-linux-gnu/cmake/gRPC:/usr/lib/x86_64-linux-gnu/cmake/grpc \
+    && cmake --build build --parallel
 
 FROM ubuntu:22.04
 
@@ -38,6 +42,7 @@ RUN apt-get update && apt-get install -y \
     libboost-system1.74.0 \
     libprotobuf23 \
     libgrpc++1 \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
