@@ -9,7 +9,7 @@ from backend.database.models.evidence import Evidence
 from backend.database.models.finding import Finding
 from backend.database.models.scan import Scan
 from backend.database.models.user import User
-from backend.database.session import get_tenant_db
+from backend.database.tenant import get_tenant_db
 from backend.services.evidence.evidence_manager import EvidenceManager
 
 logger = logging.getLogger(__name__)
