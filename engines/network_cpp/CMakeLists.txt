@@ -4,7 +4,6 @@ project(kravigil_network_engine)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Boost 1.74 REQUIRED COMPONENTS system)
 find_package(gRPC CONFIG REQUIRED)
 find_package(Protobuf REQUIRED)
 find_package(Threads REQUIRED)
@@ -36,7 +35,6 @@ add_executable(network_engine
 )
 
 target_link_libraries(network_engine
-    Boost::system
     gRPC::grpc++
     gRPC::grpc++_reflection
     protobuf::libprotobuf
