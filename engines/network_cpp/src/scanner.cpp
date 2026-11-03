@@ -19,7 +19,19 @@ AsyncScanner::AsyncScanner(
       timeout_ms_(timeout_ms),
       callback_(std::move(callback)),
       current_port_index_(0),
-      max_in_flight_(std::max<std::size_t>(1, max_in_flight)) {}
+      max_in_flight_(std::max<std::size_t>(1, max_in_flight)) {
+    if (ports_.empty()) {
+        throw std::invalid_argument("At least one port is required");
+    }
+    if (timeout_ms_ == 0) {
+        throw std::invalid_argument("timeout_ms must be greater than zero");
+    }
+    if (std::any_of(ports_.begin(), ports_.end(), [](uint32_t port) {
+            return port == 0 || port > 65535;
+        })) {
+        throw std::invalid_argument("Ports must be between 1 and 65535");
+    }
+}
 
 void AsyncScanner::start() {
     if (!stopped_) {
