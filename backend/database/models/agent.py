@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean, Index
+from sqlalchemy import JSON, Column, String, DateTime, ForeignKey, Boolean, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from backend.database.models.base import Base
 
@@ -17,7 +17,7 @@ class Agent(Base):
     last_heartbeat = Column(DateTime)
     version = Column(String(50))
     ip_address = Column(String(45))
-    metadata_json = Column(JSONB, default=dict)
+    metadata_json = Column(JSON().with_variant(JSONB, "postgresql"), default=dict)
     
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
