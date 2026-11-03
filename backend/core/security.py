@@ -96,7 +96,8 @@ class SecurityService:
 security_service = SecurityService()
 
 def get_current_user(request: Request, token: Optional[str] = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
-    db.execute(text("SELECT set_config('app.auth_lookup', 'true', true)"))
+    if db.get_bind().dialect.name == "postgresql":
+        db.execute(text("SELECT set_config('app.auth_lookup', 'true', true)"))
     api_key_header = request.headers.get("X-API-Key")
     if api_key_header:
         key_hash = hashlib.sha256(api_key_header.encode()).hexdigest()
