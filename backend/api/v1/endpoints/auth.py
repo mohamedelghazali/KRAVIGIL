@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from backend.database.session import get_db
 from backend.database.models.user import User
 from backend.database.models.session import UserSession, PasswordResetToken
@@ -18,6 +19,18 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 router = APIRouter()
 settings = get_settings()
+
+
+def _set_auth_lookup(db: Session) -> None:
+    db.execute(text("SELECT set_config('app.auth_lookup', 'true', true)"))
+
+
+def _set_tenant_context(db: Session, tenant_id) -> None:
+    db.execute(
+        text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
+        {"tenant_id": str(tenant_id)},
+    )
+    db.execute(text("SELECT set_config('app.auth_lookup', 'false', true)"))
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -46,6 +59,7 @@ def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db
     client_ip = request.client.host if request.client else "unknown"
     user_agent = request.headers.get("user-agent", "unknown")
     
+    _set_auth_lookup(db)
     user = db.query(User).filter(User.email == form_data.username).first()
     if not user or not security_service.verify_password(form_data.password, user.hashed_password):
         AuditService.log_event("LOGIN_FAILED", "user", form_data.username, source_ip=client_ip, status_code="401")
@@ -53,6 +67,7 @@ def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db
     
     if not user.is_active:
         raise HTTPException(status_code=403, detail="User account is disabled")
+    _set_tenant_context(db, user.tenant_id)
 
     if user.is_mfa_enabled:
         temp_token = security_service.create_access_token(
@@ -95,9 +110,12 @@ def login_mfa(request: Request, mfa_in: MFAVerifyRequest, db: Session = Depends(
     if not payload.get("mfa_required"):
         raise HTTPException(status_code=400, detail="MFA not required for this token")
 
+    _set_auth_lookup(db)
+    _set_tenant_context(db, session.tenant_id)
     user = db.query(User).filter(User.id == payload.get("sub")).first()
     if not user or not user.is_mfa_enabled:
         raise HTTPException(status_code=401, detail="Invalid MFA state")
+    _set_tenant_context(db, user.tenant_id)
 
     if not security_service.verify_mfa_token(user.mfa_secret, mfa_in.mfa_token):
         raise HTTPException(status_code=401, detail="Invalid MFA token")
@@ -127,6 +145,7 @@ def login_mfa(request: Request, mfa_in: MFAVerifyRequest, db: Session = Depends(
 def refresh_token(request: Request, refresh_in: RefreshRequest, db: Session = Depends(get_db)):
     payload = security_service.decode_token(refresh_in.refresh_token, "refresh")
     
+    _set_auth_lookup(db)
     token_hash = hashlib.sha256(refresh_in.refresh_token.encode()).hexdigest()
     session = db.query(UserSession).filter(
         UserSession.refresh_token_hash == token_hash,
@@ -150,10 +169,12 @@ def refresh_token(request: Request, refresh_in: RefreshRequest, db: Session = De
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 def logout(request: Request, refresh_in: RefreshRequest, db: Session = Depends(get_db)):
+    _set_auth_lookup(db)
     token_hash = hashlib.sha256(refresh_in.refresh_token.encode()).hexdigest()
     session = db.query(UserSession).filter(UserSession.refresh_token_hash == token_hash).first()
     
     if session:
+        _set_tenant_context(db, session.tenant_id)
         session.is_revoked = True
         db.commit()
         
@@ -161,10 +182,12 @@ def logout(request: Request, refresh_in: RefreshRequest, db: Session = Depends(g
 
 @router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)
 def forgot_password(req: ForgotPasswordRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    _set_auth_lookup(db)
     user = db.query(User).filter(User.email == req.email, User.is_active == True).first()
     if not user:
         return {"status": "accepted"}
 
+    _set_tenant_context(db, user.tenant_id)
     raw_token = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
     
@@ -204,6 +227,7 @@ def forgot_password(req: ForgotPasswordRequest, background_tasks: BackgroundTask
 
 @router.post("/reset-password")
 def reset_password(req: ResetPasswordRequest, db: Session = Depends(get_db)):
+    _set_auth_lookup(db)
     token_hash = hashlib.sha256(req.token.encode()).hexdigest()
     reset_entry = db.query(PasswordResetToken).filter(
         PasswordResetToken.token_hash == token_hash,
@@ -214,6 +238,7 @@ def reset_password(req: ResetPasswordRequest, db: Session = Depends(get_db)):
     if not reset_entry:
         raise HTTPException(status_code=400, detail="Invalid or expired token")
 
+    _set_tenant_context(db, reset_entry.tenant_id)
     user = db.query(User).filter(User.id == reset_entry.user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -233,6 +258,7 @@ def change_password(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    _set_tenant_context(db, current_user.tenant_id)
     if len(req.new_password) < 12:
         raise HTTPException(status_code=400, detail="New password must be at least 12 characters")
     if not security_service.verify_password(req.current_password, current_user.hashed_password):
