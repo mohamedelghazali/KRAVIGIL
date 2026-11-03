@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Index, String
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Index, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from backend.database.models.base import Base
@@ -31,7 +31,7 @@ class Observation(Base):
     )
     engine_id = Column(String(100), nullable=False)
     event_type = Column(String(100), nullable=False)
-    raw_data = Column(JSONB, nullable=False)
+    raw_data = Column(JSON().with_variant(JSONB, "postgresql"), nullable=False)
     created_at = Column(
         DateTime(timezone=True),
         default=datetime.utcnow,
