@@ -39,7 +39,7 @@ def run_backup() -> str:
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     object_prefix = f"postgresql/{datetime.now(timezone.utc):%Y/%m/%d}"
-    object_name = f"kravigil-{stamp}.dump.enc"
+    object_name = f"kravigil-{stamp}.dump.gpg"
 
     with tempfile.TemporaryDirectory(prefix="kravigil-backup-") as temp_dir:
         raw_dump = Path(temp_dir) / f"kravigil-{stamp}.dump"
@@ -66,14 +66,17 @@ def run_backup() -> str:
             stdout=subprocess.DEVNULL,
             timeout=300,
         )
+        passphrase_file = Path(temp_dir) / "backup-passphrase"
+        passphrase_file.write_text(encryption_key, encoding="utf-8")
+        passphrase_file.chmod(0o600)
         subprocess.run(
             [
-                "openssl", "enc", "-aes-256-cbc", "-salt", "-pbkdf2",
-                "-iter", "200000", "-md", "sha256",
-                "-pass", "env:BACKUP_ENCRYPTION_KEY",
-                "-in", str(raw_dump), "-out", str(encrypted_dump),
+                "gpg", "--batch", "--yes", "--pinentry-mode", "loopback",
+                "--passphrase-file", str(passphrase_file),
+                "--symmetric", "--cipher-algo", "AES256",
+                "--s2k-digest-algo", "SHA512", "--s2k-count", "65011712",
+                "--output", str(encrypted_dump), str(raw_dump),
             ],
-            env=env,
             check=True,
             timeout=int(os.getenv("BACKUP_TIMEOUT_SECONDS", "14400")),
         )
