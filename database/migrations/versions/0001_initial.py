@@ -130,4 +130,9 @@ def upgrade() -> None:
         """)
 
 def downgrade() -> None:
-    pass
+    op.drop_table("findings")
+    op.drop_table("scans")
+    op.drop_table("assets")
+    op.drop_table("targets")
+    op.drop_table("users")
+    op.drop_table("organizations")
