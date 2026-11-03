@@ -94,7 +94,7 @@ def trigger_notifications(db, tenant_id: str, event_type: str, data: dict):
             )
 
         siem_setting = db.query(TenantSetting).filter(
-            TenantSetting.tenant_id == tenant_id,
+            TenantSetting.tenant_id == tenant_uuid,
             TenantSetting.key == "siem_alerts"
         ).first()
         
@@ -422,111 +422,114 @@ def check_scheduled_scans():
     now = datetime.utcnow()
     dispatched = 0
     try:
-        due_schedules = db.query(ScheduledScan).filter(
-            ScheduledScan.is_active.is_(True),
-            ScheduledScan.next_run <= now,
-        ).with_for_update(skip_locked=True).all()
+        # Organization is the tenant registry and intentionally has no tenant RLS.
+        tenant_ids = [row[0] for row in db.query(Organization.id).all()]
+        db.rollback()
 
-        for schedule in due_schedules:
-            tenant_uuid = uuid.UUID(str(schedule.tenant_id))
+        for tenant_id in tenant_ids:
+            tenant_uuid = uuid.UUID(str(tenant_id))
             set_worker_tenant(db, tenant_uuid)
-            target = db.query(Target).filter(
-                Target.id == schedule.target_id,
-                Target.tenant_id == tenant_uuid,
-                Target.is_authorized.is_(True),
-            ).first()
-            if target is None:
-                schedule.next_run = CronParser.get_next_run(schedule.cron_expression, now)
-                db.commit()
-                continue
+            due_schedules = db.query(ScheduledScan).filter(
+                ScheduledScan.tenant_id == tenant_uuid,
+                ScheduledScan.is_active.is_(True),
+                ScheduledScan.next_run <= now,
+            ).with_for_update(skip_locked=True).all()
 
-            asset = db.query(Asset).filter(
-                Asset.target_id == target.id,
-                Asset.tenant_id == tenant_uuid,
-            ).first()
-            if asset is None:
-                asset = Asset(
+            for schedule in due_schedules:
+                target = db.query(Target).filter(
+                    Target.id == schedule.target_id,
+                    Target.tenant_id == tenant_uuid,
+                    Target.is_authorized.is_(True),
+                ).first()
+                if target is None:
+                    schedule.next_run = CronParser.get_next_run(schedule.cron_expression, now)
+                    db.commit()
+                    continue
+
+                asset = db.query(Asset).filter(
+                    Asset.target_id == target.id,
+                    Asset.tenant_id == tenant_uuid,
+                ).first()
+                if asset is None:
+                    asset = Asset(
+                        tenant_id=tenant_uuid,
+                        target_id=target.id,
+                        ip_address=target.ip_address or target.domain,
+                    )
+                    db.add(asset)
+                    db.flush()
+
+                scan_type = schedule.scan_type.upper()
+                params = dict(schedule.parameters or {})
+                scan = Scan(
                     tenant_id=tenant_uuid,
                     target_id=target.id,
-                    ip_address=target.ip_address or target.domain,
+                    asset_id=asset.id,
+                    status="PENDING",
+                    scan_type=scan_type,
                 )
-                db.add(asset)
+                db.add(scan)
                 db.flush()
+                scan_uuid = scan.id
+                asset_uuid = asset.id
+                target_address = asset.ip_address
+                target_domain = target.domain
+                schedule.last_run = now
+                schedule.next_run = CronParser.get_next_run(schedule.cron_expression, now)
+                db.commit()
 
-            scan_type = schedule.scan_type.upper()
-            params = dict(schedule.parameters or {})
-            scan = Scan(
-                tenant_id=tenant_uuid,
-                target_id=target.id,
-                asset_id=asset.id,
-                status="PENDING",
-                scan_type=scan_type,
-            )
-            db.add(scan)
-            db.flush()
-            scan_uuid = scan.id
-            asset_uuid = asset.id
-            target_address = asset.ip_address
-            target_domain = target.domain
-            schedule.last_run = now
-            schedule.next_run = CronParser.get_next_run(schedule.cron_expression, now)
+                try:
+                    if scan_type == "NETWORK":
+                        task = run_network_scan.delay(
+                            str(tenant_uuid), str(scan_uuid), str(asset_uuid),
+                            target_address, params.get("ports", [22, 80, 443, 8080]),
+                        )
+                    elif scan_type == "WEB":
+                        target_url = params.get("target_url") or target_domain or target_address
+                        if not str(target_url).startswith(("http://", "https://")):
+                            target_url = f"https://{target_url}"
+                        task = run_web_scan.delay(
+                            str(tenant_uuid), str(scan_uuid), str(asset_uuid), str(target_url),
+                        )
+                    elif scan_type == "SAST":
+                        task = run_sast_scan.delay(
+                            str(tenant_uuid), str(scan_uuid), str(asset_uuid), str(params.get("code_path", "")),
+                        )
+                    elif scan_type == "CLOUD":
+                        task = run_cloud_scan.delay(
+                            str(tenant_uuid), str(scan_uuid), str(asset_uuid), str(params.get("provider", "aws")),
+                        )
+                    else:
+                        set_worker_tenant(db, tenant_uuid)
+                        failed_scan = db.query(Scan).filter(
+                            Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid
+                        ).first()
+                        if failed_scan:
+                            failed_scan.status = "FAILED"
+                            failed_scan.error_message = f"Unsupported scheduled scan type: {scan_type}"
+                            failed_scan.finished_at = datetime.utcnow()
+                            db.commit()
+                        continue
 
-            # Commit the scan row before publishing to Celery to avoid a worker
-            # racing ahead and querying a scan that is not committed yet.
-            db.commit()
-
-            try:
-                if scan_type == "NETWORK":
-                    task = run_network_scan.delay(
-                        str(tenant_uuid), str(scan_uuid), str(asset_uuid),
-                        target_address, params.get("ports", [22, 80, 443, 8080]),
-                    )
-                elif scan_type == "WEB":
-                    target_url = params.get("target_url") or target_domain or target_address
-                    if not str(target_url).startswith(("http://", "https://")):
-                        target_url = f"https://{target_url}"
-                    task = run_web_scan.delay(
-                        str(tenant_uuid), str(scan_uuid), str(asset_uuid), str(target_url),
-                    )
-                elif scan_type == "SAST":
-                    task = run_sast_scan.delay(
-                        str(tenant_uuid), str(scan_uuid), str(asset_uuid), str(params.get("code_path", "")),
-                    )
-                elif scan_type == "CLOUD":
-                    task = run_cloud_scan.delay(
-                        str(tenant_uuid), str(scan_uuid), str(asset_uuid), str(params.get("provider", "aws")),
-                    )
-                else:
+                    set_worker_tenant(db, tenant_uuid)
+                    persisted_scan = db.query(Scan).filter(
+                        Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid
+                    ).first()
+                    if persisted_scan:
+                        persisted_scan.task_id = task.id
+                        db.commit()
+                    dispatched += 1
+                except Exception as dispatch_error:
                     set_worker_tenant(db, tenant_uuid)
                     failed_scan = db.query(Scan).filter(
                         Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid
                     ).first()
                     if failed_scan:
                         failed_scan.status = "FAILED"
-                        failed_scan.error_message = f"Unsupported scheduled scan type: {scan_type}"
+                        failed_scan.error_message = str(dispatch_error)[:2048]
                         failed_scan.finished_at = datetime.utcnow()
                         db.commit()
-                    continue
-
-                set_worker_tenant(db, tenant_uuid)
-                persisted_scan = db.query(Scan).filter(
-                    Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid
-                ).first()
-                if persisted_scan:
-                    persisted_scan.task_id = task.id
-                    db.commit()
-                dispatched += 1
-            except Exception as dispatch_error:
-                set_worker_tenant(db, tenant_uuid)
-                failed_scan = db.query(Scan).filter(
-                    Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid
-                ).first()
-                if failed_scan:
-                    failed_scan.status = "FAILED"
-                    failed_scan.error_message = str(dispatch_error)[:2048]
-                    failed_scan.finished_at = datetime.utcnow()
-                    db.commit()
-                logger.exception("Could not dispatch scheduled scan %s", scan_uuid)
+                    logger.exception("Could not dispatch scheduled scan %s", scan_uuid)
 
         return {"dispatched": dispatched}
     except Exception:
