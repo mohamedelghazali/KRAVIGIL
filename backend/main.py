@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 from datetime import datetime
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
@@ -42,7 +43,7 @@ setup_metrics(app)
 app.include_router(api_router, prefix="/api/v1")
 
 @app.websocket("/ws/scans")
-async def websocket_scans(websocket: WebSocket, token: str = None):
+async def websocket_scans(websocket: WebSocket, token: Optional[str] = None):
     await scan_websocket_endpoint(websocket, token)
 
 @app.on_event("startup")
