@@ -72,7 +72,7 @@ services:
           cpus: '2'
           memory: 4G
     environment:
-      - DATABASE_URL=postgresql://kravigil_admin:${DB_PASSWORD}@db:5432/kravigil_db
+      - DATABASE_URL=postgresql://kravigil_app:${APP_DB_PASSWORD}@db:5432/kravigil_db
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=${MINIO_USER}
@@ -101,7 +101,7 @@ services:
           cpus: '4'
           memory: 8G
     environment:
-      - DATABASE_URL=postgresql://kravigil_admin:${DB_PASSWORD}@db:5432/kravigil_db
+      - DATABASE_URL=postgresql://kravigil_app:${APP_DB_PASSWORD}@db:5432/kravigil_db
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=${MINIO_USER}
