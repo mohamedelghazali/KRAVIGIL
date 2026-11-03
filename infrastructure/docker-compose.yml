@@ -140,6 +140,7 @@ services:
       - MINIO_SECRET_KEY=${MINIO_PASSWORD:?MINIO_PASSWORD must be set}
       - SECRET_KEY=${SECRET_KEY:?SECRET_KEY must be set}
       - MINIO_BUCKET=${MINIO_BUCKET:-kravigil-evidence}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - MINIO_SECURE=false
       - KRAVIGIL_ENGINE_HOST=network_engine
       - KRAVIGIL_ENGINE_AUTH_TOKEN=${KRAVIGIL_ENGINE_AUTH_TOKEN:?KRAVIGIL_ENGINE_AUTH_TOKEN must be set}
