@@ -22,7 +22,7 @@ jobs:
       with:
         python-version: "3.11"
     - name: Install Linters
-      run: pip install ruff black mypy
+      run: pip install ruff black mypy grpcio-tools
     - name: Generate gRPC Python bindings for type checks
       run: python -m grpc_tools.protoc -I shared/protocols --python_out=shared/protocols --grpc_python_out=shared/protocols shared/protocols/network_engine.proto
     - name: Run Ruff
