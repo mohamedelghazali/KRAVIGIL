@@ -11,6 +11,7 @@
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "network_engine.grpc.pb.h"
@@ -146,7 +147,7 @@ public:
             std::this_thread::sleep_for(std::chrono::milliseconds(25));
         }
 
-        const bool cancelled = context->IsCancelled();
+        const bool context_cancelled = context->IsCancelled();
         const bool broken_stream = stream_failed.load();
         scanner->stop();
         work_guard.reset();
@@ -160,10 +161,13 @@ public:
             }
         }
 
+        bool rpc_cancelled = false;
         {
             std::lock_guard<std::mutex> lock(scans_mutex_);
             active_scans_.erase(request->scan_id());
+            rpc_cancelled = cancelled_scan_ids_.erase(request->scan_id()) > 0;
         }
+        const bool cancelled = context_cancelled || rpc_cancelled;
 
         if (!cancelled && !broken_stream) {
             ScanEvent event;
@@ -202,6 +206,7 @@ public:
                 return Status::OK;
             }
             scanner = it->second;
+            cancelled_scan_ids_.insert(request->scan_id());
         }
 
         scanner->stop();
@@ -219,6 +224,7 @@ private:
     std::string authorization_token_;
     std::mutex scans_mutex_;
     std::unordered_map<std::string, std::shared_ptr<AsyncScanner>> active_scans_;
+    std::unordered_set<std::string> cancelled_scan_ids_;
 };
 
 bool RunServer() {
