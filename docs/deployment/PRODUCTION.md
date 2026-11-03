@@ -19,7 +19,7 @@ Generate URL-safe random secrets, for example:
 openssl rand -hex 32
 ```
 
-Use unique values for `SECRET_KEY`, `DB_PASSWORD`, `APP_DB_PASSWORD`, `REDIS_PASSWORD`, `MINIO_PASSWORD`, `GRAFANA_PASSWORD`, `KRAVIGIL_ENGINE_AUTH_TOKEN`, SMTP credentials and the initial administrator password. The deployment script rejects empty or placeholder values and requires HTTPS.
+Use unique values for `SECRET_KEY`, `DB_PASSWORD`, `APP_DB_PASSWORD`, `BACKUP_ENCRYPTION_KEY`, `REDIS_PASSWORD`, `MINIO_PASSWORD`, `GRAFANA_PASSWORD`, `KRAVIGIL_ENGINE_AUTH_TOKEN`, SMTP credentials and the initial administrator password. The deployment script rejects empty or placeholder values and requires HTTPS.
 
 Set:
 
@@ -73,7 +73,7 @@ From the repository root:
 ./scripts/go_live.sh
 ```
 
-The script validates secrets and certificates, builds images, starts healthy dependencies, applies Alembic migrations with the database administrator, seeds the initial administrator, provisions a non-superuser `kravigil_app` role, and runs the API and workers with that role so PostgreSQL row-level security is actually enforced. It then starts the remaining services and checks the HTTPS system-health endpoint.
+The script validates secrets and certificates, builds images, starts healthy dependencies, configures and verifies MinIO replication for evidence and backup buckets, applies Alembic migrations with the database administrator, seeds the initial administrator, provisions a non-superuser `kravigil_app` role, and runs the API and workers with that role so PostgreSQL row-level security is actually enforced. It then starts the remaining services, including encrypted PostgreSQL backups, and checks the HTTPS system-health endpoint.
 
 The script does not perform a production deployment from this chat. Run it on the intended host after reviewing the configuration.
 
@@ -85,9 +85,11 @@ Before opening public access:
 2. Verify login, MFA challenge, refresh, logout, password reset email, session revocation and tenant isolation.
 3. Run network, web, SAST and cloud scan workflows only against explicitly authorized targets.
 4. Verify report generation, evidence upload/download, webhook delivery, metrics and Grafana provisioning.
-5. Perform a PostgreSQL and MinIO backup, restore both into an isolated environment, and verify evidence hashes.
-6. Confirm MinIO versioning/Object Lock retention settings and replication state rather than assuming they are enabled by the Compose file.
-7. Review firewall rules; expose only the intended HTTPS entry point. Do not publish PostgreSQL, Redis, MinIO, Grafana or the gRPC engine directly.
+5. Wait for the first encrypted PostgreSQL backup to finish and confirm the backup container is healthy. Verify MinIO replication for both evidence and backup buckets.
+6. Restore a backup into an isolated PostgreSQL database: download the `.dump.enc` object and its `.sha256` sidecar, run `sha256sum -c`, decrypt with `openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -md sha256 -pass env:BACKUP_ENCRYPTION_KEY`, then validate with `pg_restore --list` before restoring with `pg_restore --clean --if-exists --no-owner --no-acl`. Never test restore against the live production database.
+7. Verify evidence objects and their SHA-256 hashes after replication and restore.
+8. Confirm MinIO versioning and replication state rather than assuming they are enabled by the Compose file. The bundled target MinIO runs on the same host by default; move it to a separate failure domain for genuine off-host disaster recovery.
+9. Review firewall rules; expose only the intended HTTPS entry point. Do not publish PostgreSQL, Redis, MinIO, Grafana or the gRPC engine directly.
 
 ## 6. Operational cautions
 
