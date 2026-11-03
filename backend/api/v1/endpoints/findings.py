@@ -4,7 +4,7 @@ from typing import List
 from backend.database.models.finding import Finding
 from backend.database.models.user import User
 from backend.database.tenant import get_tenant_db
-from backend.core.security import get_current_user, require_role, require_permission
+from backend.core.security import require_permission
 from backend.security.rbac import Permission
 from backend.core.audit_service import AuditService
 from pydantic import BaseModel
