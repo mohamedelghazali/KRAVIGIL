@@ -1,9 +1,11 @@
 import uuid
 import logging
+import pyotp
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 from backend.database.models.user import User
+from backend.database.models.session import UserSession
 from backend.database.session import get_tenant_db
 from backend.core.security import require_role, security_service
 from backend.core.exceptions import KravigilException
@@ -29,6 +31,7 @@ class UserResponse(BaseModel):
     email: str
     role: str
     is_active: bool
+    is_mfa_enabled: bool
 
     class Config:
         from_attributes = True
@@ -36,11 +39,22 @@ class UserResponse(BaseModel):
 class UserUpdateRole(BaseModel):
     role: str
 
-    @validator("role")
-    def validate_role(cls, v):
-        if v not in ["admin", "analyst", "viewer"]:
-            raise ValueError("Role must be admin, analyst, or viewer")
-        return v
+class MFASetupResponse(BaseModel):
+    secret: str
+    provisioning_uri: str
+
+class MFAEnableRequest(BaseModel):
+    mfa_token: str
+
+class SessionResponse(BaseModel):
+    id: uuid.UUID
+    ip_address: str | None
+    user_agent: str | None
+    created_at: datetime
+    last_used_at: datetime
+
+    class Config:
+        from_attributes = True
 
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def create_user(
@@ -137,3 +151,65 @@ def deactivate_user(
         tenant_id=current_user.tenant_id,
         actor_id=current_user.id
     )
+
+@router.post("/me/mfa/setup", response_model=MFASetupResponse)
+def setup_mfa(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_tenant_db)
+):
+    if current_user.is_mfa_enabled:
+        raise HTTPException(status_code=400, detail="MFA is already enabled")
+
+    secret = security_service.generate_mfa_secret()
+    current_user.mfa_secret = secret
+    db.commit()
+
+    provisioning_uri = pyotp.TOTP(secret).provisioning_uri(
+        name=current_user.email,
+        issuer_name="KRAVIGIL"
+    )
+    return {"secret": secret, "provisioning_uri": provisioning_uri}
+
+@router.post("/me/mfa/enable")
+def enable_mfa(
+    req: MFAEnableRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_tenant_db)
+):
+    if not current_user.mfa_secret:
+        raise HTTPException(status_code=400, detail="MFA setup not initiated")
+        
+    if not security_service.verify_mfa_token(current_user.mfa_secret, req.mfa_token):
+        raise HTTPException(status_code=400, detail="Invalid MFA token")
+
+    current_user.is_mfa_enabled = True
+    db.commit()
+    return {"status": "success"}
+
+@router.get("/me/sessions", response_model=List[SessionResponse])
+def list_sessions(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_tenant_db)
+):
+    return db.query(UserSession).filter(
+        UserSession.user_id == current_user.id,
+        UserSession.is_revoked == False,
+        UserSession.expires_at > datetime.utcnow()
+    ).all()
+
+@router.delete("/me/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+def revoke_session(
+    session_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_tenant_db)
+):
+    session = db.query(UserSession).filter(
+        UserSession.id == session_id,
+        UserSession.user_id == current_user.id
+    ).first()
+    
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+        
+    session.is_revoked = True
+    db.commit()
