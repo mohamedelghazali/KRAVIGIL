@@ -9,7 +9,7 @@ from backend.database.models.agent import Agent
 from backend.database.models.scan import Scan
 from backend.database.models.observation import Observation
 from backend.database.models.user import User
-from backend.database.session import get_tenant_db
+from backend.database.tenant import get_tenant_db
 from backend.core.exceptions import KravigilException
 from backend.services.normalization.normalizer import Normalizer
 from backend.core.audit_service import AuditService
