@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean, Index
+from sqlalchemy import JSON, Column, String, DateTime, ForeignKey, Boolean, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from backend.database.models.base import Base
 
@@ -14,7 +14,7 @@ class ScheduledScan(Base):
     name = Column(String(255), nullable=False)
     scan_type = Column(String(50), nullable=False)
     cron_expression = Column(String(100), nullable=False)
-    parameters = Column(JSONB, nullable=False)
+    parameters = Column(JSON().with_variant(JSONB, "postgresql"), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     
     last_run = Column(DateTime)
