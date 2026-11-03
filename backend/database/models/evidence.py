@@ -17,7 +17,7 @@ class Evidence(Base):
     size_bytes = Column(BigInteger, nullable=False)
     sha256 = Column(String(64), nullable=False, index=True)
     encryption = Column(String(50), default="SSE-S3", nullable=False)
-    metadata_json = Column(JSONB, default=dict, nullable=False)
+    metadata_json = Column(JSON().with_variant(JSONB, "postgresql"), default=dict, nullable=False)
     retention_policy = Column(String(50), default="standard", nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     __table_args__ = (
