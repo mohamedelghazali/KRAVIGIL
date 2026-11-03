@@ -49,13 +49,14 @@ jobs:
         image: redis:7-alpine
         ports:
           - 6379:6379
-      minio:
-        image: minio/minio:latest
+      s3mock:
+        image: localstack/localstack:latest
         env:
-          MINIO_ROOT_USER: test_minio_user
-          MINIO_ROOT_PASSWORD: test_minio_password
+          SERVICES: s3
+          DEFAULT_REGION: us-east-1
+          DEBUG: "0"
         ports:
-          - 9000:9000
+          - 4566:4566
 
     steps:
     - uses: actions/checkout@v3
@@ -87,10 +88,10 @@ jobs:
         GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO kravigil_app;
         GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO kravigil_app;
         SQL
-    - name: Wait for MinIO
+    - name: Wait for S3-compatible test endpoint
       run: |
         for attempt in {1..30}; do
-          if curl --fail --silent http://localhost:9000/minio/health/live >/dev/null; then
+          if curl --fail --silent http://localhost:4566/_localstack/health >/dev/null; then
             exit 0
           fi
           sleep 2
@@ -103,9 +104,9 @@ jobs:
         REDIS_URL: redis://localhost:6379/0
         SECRET_KEY: test_secret_key_for_ci
         PYTHONPATH: .:shared/protocols
-        MINIO_ENDPOINT: localhost:9000
-        MINIO_ACCESS_KEY: test_minio_user
-        MINIO_SECRET_KEY: test_minio_password
+        MINIO_ENDPOINT: localhost:4566
+        MINIO_ACCESS_KEY: test
+        MINIO_SECRET_KEY: test
         MINIO_BUCKET: kravigil-test
         MINIO_SECURE: "false"
         DEBUG: "True"
