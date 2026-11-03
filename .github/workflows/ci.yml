@@ -61,6 +61,8 @@ jobs:
         pip install pytest pytest-asyncio pytest-cov
     - name: Compile Python source
       run: python -m compileall -q backend workers ai shared scripts database
+    - name: Generate gRPC Python bindings
+      run: python -m grpc_tools.protoc -I shared/protocols --python_out=shared/protocols --grpc_python_out=shared/protocols shared/protocols/network_engine.proto
     - name: Apply production migrations to PostgreSQL test service
       env:
         DATABASE_URL: postgresql://kravigil_admin:test_password@localhost:5432/kravigil_test
@@ -82,6 +84,7 @@ jobs:
         RLS_DATABASE_URL: postgresql://kravigil_app:test_app_password@localhost:5432/kravigil_test
         REDIS_URL: redis://localhost:6379/0
         SECRET_KEY: test_secret_key_for_ci
+        PYTHONPATH: .:shared/protocols
         MINIO_ENDPOINT: localhost:9000
         MINIO_ACCESS_KEY: test_minio_user
         MINIO_SECRET_KEY: test_minio_password
