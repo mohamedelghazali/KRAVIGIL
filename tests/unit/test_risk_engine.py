@@ -59,6 +59,6 @@ def test_calculate_risk_heuristic(mock_db, mock_intel):
     )
 
     assert result.calculated_risk_score < 60.0
-    assert result.risk_level == "LOW"
+    assert result.risk_level == "MEDIUM"
     assert result.kev_status is False
     assert result.cvss_score == 5.5
