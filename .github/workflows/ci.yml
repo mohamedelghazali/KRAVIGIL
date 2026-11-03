@@ -51,11 +51,18 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install pytest pytest-asyncio pytest-cov
+    - name: Compile Python source
+      run: python -m compileall -q backend workers ai shared scripts database
     - name: Run Unit & Security Tests
       env:
         DATABASE_URL: postgresql://kravigil_admin:test_password@localhost:5432/kravigil_test
         REDIS_URL: redis://localhost:6379/0
         SECRET_KEY: test_secret_key_for_ci
+        MINIO_ENDPOINT: localhost:9000
+        MINIO_ACCESS_KEY: test_minio_user
+        MINIO_SECRET_KEY: test_minio_password
+        MINIO_BUCKET: kravigil-test
+        MINIO_SECURE: "false"
         DEBUG: "True"
       run: |
         pytest tests/unit tests/security -v --cov=backend --cov=ai
@@ -78,3 +85,29 @@ jobs:
       run: |
         cd engines/network_cpp/build
         ./scanner_test
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+        cache: npm
+        cache-dependency-path: frontend/package-lock.json
+    - name: Install dependencies
+      run: npm ci
+    - name: Build frontend
+      run: npm run build
+
+  container-build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build backend image
+      run: docker build -f backend/Dockerfile -t kravigil-backend:ci .
+    - name: Build network engine image
+      run: docker build -f engines/network_cpp/Dockerfile -t kravigil-network-engine:ci .
