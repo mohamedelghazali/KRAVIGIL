@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 import logging
 import pyotp
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -6,8 +7,8 @@ from sqlalchemy.orm import Session
 from typing import List
 from backend.database.models.user import User
 from backend.database.models.session import UserSession
-from backend.database.session import get_tenant_db
-from backend.core.security import require_role, security_service
+from backend.database.tenant import get_tenant_db
+from backend.core.security import get_current_user, require_role, security_service
 from backend.core.exceptions import KravigilException
 from backend.core.audit_service import AuditService
 from pydantic import BaseModel, EmailStr, validator
