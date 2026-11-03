@@ -3,6 +3,7 @@ import sys
 import logging
 import uuid
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from backend.database.session import SessionLocal, engine
 from backend.database.models.base import Base
 from backend.database.models.user import Organization, User
@@ -25,6 +26,8 @@ def seed_database():
             logger.info("Created Default Organization")
         else:
             logger.info("Default Organization already exists")
+
+        db.execute(text("SELECT set_config('app.tenant_id', :tenant_id, true)"), {"tenant_id": str(org.id)})
 
         admin_email = os.getenv("ADMIN_EMAIL")
         admin_password = os.getenv("ADMIN_PASSWORD")
