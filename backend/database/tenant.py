@@ -17,9 +17,19 @@ def get_tenant_db(
     try:
         if db.get_bind().dialect.name == "postgresql":
             db.execute(
-                text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
+                text("SELECT set_config('app.tenant_id', :tenant_id, false)"),
                 {"tenant_id": str(current_user.tenant_id)},
             )
+            db.commit()
         yield db
     finally:
+        if db.get_bind().dialect.name == "postgresql":
+            try:
+                db.rollback()
+                db.execute(
+                    text("SELECT set_config('app.tenant_id', '', false), set_config('app.auth_lookup', 'false', false)")
+                )
+                db.commit()
+            except Exception:
+                db.rollback()
         db.close()
