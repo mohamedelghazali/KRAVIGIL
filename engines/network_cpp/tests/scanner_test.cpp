@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <stdexcept>
 #include <boost/asio.hpp>
 #include "scanner.hpp"
 
