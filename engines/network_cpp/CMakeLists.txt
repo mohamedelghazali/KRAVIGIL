@@ -4,7 +4,10 @@ project(kravigil_network_engine)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(gRPC CONFIG REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GRPC REQUIRED IMPORTED_TARGET grpc++)
+find_program(GRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin REQUIRED)
+find_library(GRPC_REFLECTION_LIBRARY NAMES grpc++_reflection REQUIRED)
 find_package(Protobuf REQUIRED)
 find_package(Threads REQUIRED)
 find_package(GTest REQUIRED)
@@ -19,7 +22,7 @@ add_custom_command(
     ARGS --grpc_out=${CMAKE_CURRENT_SOURCE_DIR}/../../shared/protocols
          --cpp_out=${CMAKE_CURRENT_SOURCE_DIR}/../../shared/protocols
          -I ${CMAKE_CURRENT_SOURCE_DIR}/../../shared/protocols
-         --plugin=protoc-gen-grpc=$<TARGET_FILE:gRPC::grpc_cpp_plugin>
+         --plugin=protoc-gen-grpc=${GRPC_CPP_PLUGIN_EXECUTABLE}
          ${PROTO_FILE}
     DEPENDS ${PROTO_FILE}
 )
@@ -35,8 +38,8 @@ add_executable(network_engine
 )
 
 target_link_libraries(network_engine
-    gRPC::grpc++
-    gRPC::grpc++_reflection
+    PkgConfig::GRPC
+    ${GRPC_REFLECTION_LIBRARY}
     protobuf::libprotobuf
     Threads::Threads
 )
