@@ -38,9 +38,23 @@ jobs:
           pip install pytest pytest-asyncio pytest-cov bandit pip-audit
       - name: Compile Python
         run: python -m compileall -q backend workers ai shared scripts database
+      - name: Apply Alembic migrations
+        env:
+          DATABASE_URL: postgresql://kravigil_admin:test_password@localhost:5432/kravigil_test
+        run: alembic upgrade head
+      - name: Create restricted RLS test role
+        env:
+          PGPASSWORD: test_password
+        run: |
+          psql -h localhost -U kravigil_admin -d kravigil_test -c "CREATE ROLE kravigil_app LOGIN PASSWORD 'test_app_password' NOSUPERUSER NOBYPASSRLS"
+          psql -h localhost -U kravigil_admin -d kravigil_test -c "GRANT CONNECT ON DATABASE kravigil_test TO kravigil_app"
+          psql -h localhost -U kravigil_admin -d kravigil_test -c "GRANT USAGE ON SCHEMA public TO kravigil_app"
+          psql -h localhost -U kravigil_admin -d kravigil_test -c "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO kravigil_app"
+          psql -h localhost -U kravigil_admin -d kravigil_test -c "GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO kravigil_app"
       - name: Run backend and security tests
         env:
           DATABASE_URL: postgresql://kravigil_admin:test_password@localhost:5432/kravigil_test
+          RLS_DATABASE_URL: postgresql://kravigil_app:test_app_password@localhost:5432/kravigil_test
           REDIS_URL: redis://localhost:6379/0
           SECRET_KEY: test_secret_key_for_ci
           MINIO_ENDPOINT: localhost:9000
