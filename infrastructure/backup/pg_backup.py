@@ -5,7 +5,7 @@ import logging
 import os
 import subprocess
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 from minio import Minio
@@ -35,7 +35,6 @@ def run_backup() -> str:
     access_key = required("MINIO_ACCESS_KEY")
     secret_key = required("MINIO_SECRET_KEY")
     bucket = os.getenv("MINIO_BACKUP_BUCKET", "kravigil-backups")
-    retention_days = int(os.getenv("BACKUP_RETENTION_DAYS", "30"))
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     object_prefix = f"postgresql/{datetime.now(timezone.utc):%Y/%m/%d}"
@@ -107,17 +106,10 @@ def run_backup() -> str:
             content_type="text/plain",
         )
 
-        cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
-        removed = 0
-        for item in client.list_objects(bucket, prefix="postgresql/", recursive=True):
-            if item.last_modified and item.last_modified < cutoff:
-                client.remove_object(bucket, item.object_name)
-                removed += 1
-
         Path("/tmp/last-success").touch()
         logger.info(
-            "Backup uploaded: bucket=%s key=%s size=%s sha256=%s expired_objects_removed=%s",
-            bucket, object_key, encrypted_dump.stat().st_size, digest, removed,
+            "Backup uploaded: bucket=%s key=%s size=%s sha256=%s",
+            bucket, object_key, encrypted_dump.stat().st_size, digest,
         )
         return object_key
 
