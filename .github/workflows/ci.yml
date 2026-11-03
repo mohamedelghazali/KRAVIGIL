@@ -60,9 +60,25 @@ jobs:
         pip install pytest pytest-asyncio pytest-cov
     - name: Compile Python source
       run: python -m compileall -q backend workers ai shared scripts database
+    - name: Apply production migrations to PostgreSQL test service
+      env:
+        DATABASE_URL: postgresql://kravigil_admin:test_password@localhost:5432/kravigil_test
+      run: alembic upgrade head
+    - name: Provision a non-superuser RLS test role
+      env:
+        PGPASSWORD: test_password
+      run: |
+        psql -h localhost -U kravigil_admin -d kravigil_test -v ON_ERROR_STOP=1 <<'SQL'
+        CREATE ROLE kravigil_app LOGIN PASSWORD 'test_app_password' NOSUPERUSER NOBYPASSRLS;
+        GRANT CONNECT ON DATABASE kravigil_test TO kravigil_app;
+        GRANT USAGE ON SCHEMA public TO kravigil_app;
+        GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO kravigil_app;
+        GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO kravigil_app;
+        SQL
     - name: Run Unit & Security Tests
       env:
         DATABASE_URL: postgresql://kravigil_admin:test_password@localhost:5432/kravigil_test
+        RLS_DATABASE_URL: postgresql://kravigil_app:test_app_password@localhost:5432/kravigil_test
         REDIS_URL: redis://localhost:6379/0
         SECRET_KEY: test_secret_key_for_ci
         MINIO_ENDPOINT: localhost:9000
