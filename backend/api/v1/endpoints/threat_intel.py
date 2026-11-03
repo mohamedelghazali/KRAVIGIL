@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from backend.database.models.threat_intel import ThreatIndicator
 from backend.database.models.user import User
-from backend.database.session import get_tenant_db
+from backend.database.tenant import get_tenant_db
 from backend.core.security import require_role
 from pydantic import BaseModel
 from datetime import datetime
