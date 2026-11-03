@@ -15,10 +15,11 @@ def get_tenant_db(
     """Yield a database session with the authenticated tenant set for RLS."""
     db = SessionLocal()
     try:
-        db.execute(
-            text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
-            {"tenant_id": str(current_user.tenant_id)},
-        )
+        if db.get_bind().dialect.name == "postgresql":
+            db.execute(
+                text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
+                {"tenant_id": str(current_user.tenant_id)},
+            )
         yield db
     finally:
         db.close()
