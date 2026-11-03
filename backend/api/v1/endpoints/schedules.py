@@ -22,7 +22,14 @@ class ScheduleCreate(BaseModel):
     name: str
     scan_type: str
     cron_expression: str
-    parameters: dict
+    parameters: dict = {}
+
+    @validator("scan_type")
+    def validate_scan_type(cls, value):
+        normalized = value.upper()
+        if normalized not in {"NETWORK", "WEB", "SAST", "CLOUD"}:
+            raise ValueError("Unsupported scan type")
+        return normalized
 
 class ScheduleUpdate(BaseModel):
     name: str | None = None
@@ -52,6 +59,8 @@ def create_schedule(
         target = db.query(Target).filter(Target.id == schedule_in.target_id, Target.tenant_id == current_user.tenant_id).first()
         if not target:
             raise HTTPException(status_code=404, detail="Target not found")
+        if not target.is_authorized:
+            raise HTTPException(status_code=409, detail="Target must be authorized before scheduling scans")
         next_run = CronParser.get_next_run(schedule_in.cron_expression)
         schedule = ScheduledScan(
             tenant_id=current_user.tenant_id,
@@ -73,6 +82,8 @@ def create_schedule(
             actor_id=current_user.id
         )
         return schedule
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -99,8 +110,11 @@ def update_schedule(
     if schedule_in.name is not None:
         schedule.name = schedule_in.name
     if schedule_in.cron_expression is not None:
+        try:
+            schedule.next_run = CronParser.get_next_run(schedule_in.cron_expression)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         schedule.cron_expression = schedule_in.cron_expression
-        schedule.next_run = CronParser.get_next_run(schedule_in.cron_expression)
     if schedule_in.parameters is not None:
         schedule.parameters = schedule_in.parameters
     if schedule_in.is_active is not None:
