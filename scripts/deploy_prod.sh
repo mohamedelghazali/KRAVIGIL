@@ -85,24 +85,24 @@ fi
 docker compose version >/dev/null
 docker compose "${BASE_COMPOSE[@]}" config --quiet
 
-echo "[1/7] Building production images..."
+echo "[1/8] Building production images..."
 docker compose "${BASE_COMPOSE[@]}" build
 
-echo "[2/7] Starting data services and the TLS-protected network engine..."
+echo "[2/8] Starting data services and the TLS-protected network engine..."
 docker compose "${BASE_COMPOSE[@]}" up -d --wait db redis minio target-minio network_engine
 
- echo "[3/8] Configuring evidence and backup replication..."
+echo "[3/8] Configuring evidence and backup replication..."
 bash infrastructure/minio/replicate.sh
 bash infrastructure/minio/verify_replication.sh
 
 MIGRATION_DATABASE_URL="postgresql://kravigil_admin:${DB_PASSWORD}@db:5432/kravigil_db"
-echo "[3/7] Applying database migrations with the restricted migration workflow..."
+echo "[4/8] Applying database migrations with the restricted migration workflow..."
 docker compose "${BASE_COMPOSE[@]}" run --rm --no-deps -e DATABASE_URL="$MIGRATION_DATABASE_URL" backend alembic upgrade head
 
-echo "[4/7] Ensuring the initial administrator exists..."
+echo "[5/8] Ensuring the initial administrator exists..."
 docker compose "${BASE_COMPOSE[@]}" run --rm --no-deps -e DATABASE_URL="$MIGRATION_DATABASE_URL" backend python /app/scripts/seed_db.py
 
-echo "[5/7] Provisioning the non-superuser application database role..."
+echo "[6/8] Provisioning the non-superuser application database role..."
 docker compose "${BASE_COMPOSE[@]}" exec -T db psql -v ON_ERROR_STOP=1 \
   -U kravigil_admin -d kravigil_db \
   -v app_user=kravigil_app -v app_password="$APP_DB_PASSWORD" -v admin_user=kravigil_admin <<'SQL'
@@ -120,10 +120,10 @@ ALTER DEFAULT PRIVILEGES FOR ROLE :"admin_user" IN SCHEMA public
   GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO :"app_user";
 SQL
 
-echo "[6/7] Starting the application with RLS-enforced credentials..."
+echo "[7/8] Starting the application with RLS-enforced credentials..."
 docker compose "${BASE_COMPOSE[@]}" up -d backend worker frontend nginx prometheus grafana backup
 
-echo "Deployment commands completed. Checking application health..."
+echo "[8/8] Checking application health..."
 curl --fail --silent --show-error "${FRONTEND_URL%/}/api/v1/system/health"
 echo
 docker compose "${BASE_COMPOSE[@]}" ps
