@@ -10,6 +10,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ /app/backend/
+COPY database/ /app/database/
+COPY scripts/ /app/scripts/
+COPY alembic.ini /app/alembic.ini
 COPY shared/ /app/shared/
 COPY ai/ /app/ai/
 RUN useradd --create-home --system --shell /usr/sbin/nologin kravigil \
