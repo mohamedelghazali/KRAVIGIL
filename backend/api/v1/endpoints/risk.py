@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from backend.database.models.risk import RiskAssessment
 from backend.database.models.user import User
-from backend.database.session import get_tenant_db
+from backend.database.tenant import get_tenant_db
 from backend.core.security import get_current_user, require_role
 from backend.services.risk.risk_engine import RiskEngine
 from pydantic import BaseModel
