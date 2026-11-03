@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, ForeignKey, Index, Text
+from sqlalchemy import JSON, Column, String, DateTime, ForeignKey, Index, Text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from backend.database.models.base import Base
 
@@ -13,7 +13,7 @@ class AgentTask(Base):
 
     scan_id = Column(UUID(as_uuid=True), ForeignKey("scans.id", ondelete="CASCADE"), nullable=False, index=True)
     command_type = Column(String(50), nullable=False)
-    parameters = Column(JSONB, nullable=False)
+    parameters = Column(JSON().with_variant(JSONB, "postgresql"), nullable=False)
 
     status = Column(String(50), default="PENDING", nullable=False, index=True)
     error_message = Column(Text)
