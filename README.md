@@ -2,12 +2,18 @@
 
 **Enterprise Vulnerability Assessment & Security Intelligence Platform**
 
-## 🚀 One-Command Deployment
+## 🚀 Production Deployment
+
+1. Copy `.env.example` to `.env` and replace every `CHANGE_ME` value with a unique secret. Generate URL-safe passwords with `openssl rand -hex 32`.
+2. Configure the application domain in `FRONTEND_URL`, `ALLOWED_ORIGINS`, and `infrastructure/nginx/nginx.prod.conf`.
+3. Configure the gRPC engine TLS files as described in [Production Deployment](docs/deployment/PRODUCTION.md).
+4. Install Docker Engine with the Docker Compose v2 plugin, then run:
 
 ```bash
-cp .env.example .env
 ./scripts/go_live.sh
 ```
+
+The deployment script validates secrets, certificates, Compose configuration, migrations, and the HTTPS health endpoint. It does not create production secrets or certificates automatically.
 
 ## 🌟 Features
 
