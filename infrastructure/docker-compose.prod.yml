@@ -80,9 +80,12 @@ services:
       - SECRET_KEY=${SECRET_KEY}
       - DEBUG=false
     depends_on:
-      - db
-      - redis
-      - minio
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     networks:
       - control_plane
       - data_plane
@@ -105,9 +108,12 @@ services:
       - MINIO_SECRET_KEY=${MINIO_PASSWORD}
       - SECRET_KEY=${SECRET_KEY}
     depends_on:
-      - redis
-      - db
-      - network_engine
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      network_engine:
+        condition: service_healthy
     networks:
       - control_plane
       - data_plane
