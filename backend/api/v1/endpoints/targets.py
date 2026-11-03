@@ -7,7 +7,8 @@ from backend.database.tenant import get_tenant_db
 from backend.core.security import get_current_user, require_role
 from backend.core.exceptions import KravigilException
 from backend.core.audit_service import AuditService
-from pydantic import BaseModel, validator, IPvAnyAddress
+from pydantic import BaseModel, validator, IPvAnyAddress, root_validator
+import re
 import uuid
 
 router = APIRouter()
@@ -29,15 +30,68 @@ class TargetCreate(BaseModel):
         if v is not None:
             try:
                 IPvAnyAddress(v)
-            except ValueError:
-                raise ValueError("Invalid IP address format")
+            except ValueError as exc:
+                raise ValueError("Invalid IP address format") from exc
         return v
+
+    @validator("domain")
+    def validate_domain(cls, v):
+        if v is None:
+            return v
+        value = v.strip().rstrip(".")
+        if not value or "://" in value or any(ch in value for ch in "/?#@"):
+            raise ValueError("Domain must be a hostname without a URL path or scheme")
+        try:
+            ascii_name = value.encode("idna").decode("ascii")
+        except UnicodeError as exc:
+            raise ValueError("Invalid internationalized domain name") from exc
+        labels = ascii_name.split(".")
+        if len(ascii_name) > 253 or any(
+            not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", label)
+            for label in labels
+        ):
+            raise ValueError("Invalid domain name")
+        return ascii_name.lower()
+
+    @root_validator
+    def require_target(cls, values):
+        if not values.get("ip_address") and not values.get("domain"):
+            raise ValueError("At least one of ip_address or domain is required")
+        return values
 
 class TargetUpdate(BaseModel):
     name: str | None = None
     ip_address: str | None = None
     domain: str | None = None
     is_authorized: bool | None = None
+
+    @validator("ip_address")
+    def validate_update_ip(cls, v):
+        if v is not None:
+            try:
+                IPvAnyAddress(v)
+            except ValueError as exc:
+                raise ValueError("Invalid IP address format") from exc
+        return v
+
+    @validator("domain")
+    def validate_update_domain(cls, v):
+        if v is None:
+            return v
+        value = v.strip().rstrip(".")
+        if not value or "://" in value or any(ch in value for ch in "/?#@"):
+            raise ValueError("Domain must be a hostname without a URL path or scheme")
+        try:
+            ascii_name = value.encode("idna").decode("ascii")
+        except UnicodeError as exc:
+            raise ValueError("Invalid internationalized domain name") from exc
+        labels = ascii_name.split(".")
+        if len(ascii_name) > 253 or any(
+            not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", label)
+            for label in labels
+        ):
+            raise ValueError("Invalid domain name")
+        return ascii_name.lower()
 
 class TargetResponse(BaseModel):
     id: uuid.UUID
@@ -115,10 +169,21 @@ def update_target(
     if target_in.is_authorized is True and current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Only administrators can authorize scan targets")
 
-    if target_in.name is not None: target.name = target_in.name
-    if target_in.ip_address is not None: target.ip_address = target_in.ip_address
-    if target_in.domain is not None: target.domain = target_in.domain
-    if target_in.is_authorized is not None: target.is_authorized = target_in.is_authorized
+    address_changed = (
+        (target_in.ip_address is not None and target_in.ip_address != target.ip_address)
+        or (target_in.domain is not None and target_in.domain != target.domain)
+    )
+    if target_in.name is not None:
+        target.name = target_in.name.strip()
+    if target_in.ip_address is not None:
+        target.ip_address = target_in.ip_address
+    if target_in.domain is not None:
+        target.domain = target_in.domain
+    if address_changed:
+        # Any destination change invalidates the previous authorization.
+        target.is_authorized = False
+    elif target_in.is_authorized is not None:
+        target.is_authorized = target_in.is_authorized
 
     db.commit()
     db.refresh(target)
