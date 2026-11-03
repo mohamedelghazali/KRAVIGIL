@@ -123,6 +123,8 @@ def start_web_scan(scan_in: WebScanCreate, current_user: User = Depends(require_
         scan, asset = _init_scan(db, current_user.tenant_id, scan_in.target_id, "WEB")
         target = db.query(Target).filter(Target.id == scan_in.target_id, Target.tenant_id == current_user.tenant_id).first()
         hostname = target.domain or asset.ip_address
+        if not target.domain and ":" in hostname and not hostname.startswith("["):
+            hostname = f"[{hostname}]"
         target_url = hostname if hostname.startswith(("http://", "https://")) else f"https://{hostname}"
         task = run_web_scan.delay(str(current_user.tenant_id), str(scan.id), str(asset.id), target_url)
         scan.task_id = task.id
