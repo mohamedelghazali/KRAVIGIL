@@ -41,6 +41,8 @@ class NucleiAdapter(BaseEngineAdapter):
                 netloc = f"{netloc}:{parsed.port}"
             pinned_url = urlunsplit((parsed.scheme, netloc, parsed.path or "/", parsed.query, ""))
             host_header = hostname
+            if _is_ip(hostname) and ":" in hostname:
+                host_header = f"[{hostname}]"
             if parsed.port:
                 host_header = f"{hostname}:{parsed.port}"
             args[1] = pinned_url
