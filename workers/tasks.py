@@ -160,6 +160,9 @@ from backend.database.models.threat_intel import ThreatIndicator
 from backend.database.models.target import Target
 from backend.database.models.schedule import ScheduledScan
 from backend.services.scheduler.cron_parser import CronParser
+from backend.security.scope_guard import ScopeGuard
+from backend.core.config import get_settings
+import ipaddress
 
 
 @celery_app.task(bind=True, name="tasks.run_network_scan", acks_late=True)
@@ -422,7 +425,6 @@ def check_scheduled_scans():
     now = datetime.utcnow()
     dispatched = 0
     try:
-        # Organization is the tenant registry and intentionally has no tenant RLS.
         tenant_ids = [row[0] for row in db.query(Organization.id).all()]
         db.rollback()
 
@@ -446,6 +448,18 @@ def check_scheduled_scans():
                     db.commit()
                     continue
 
+                scan_type = schedule.scan_type.upper()
+                params = dict(schedule.parameters or {})
+                guard = ScopeGuard(get_settings().ALLOWED_SCAN_CIDRS)
+                try:
+                    resolved = guard.validate_target(target.ip_address or target.domain)
+                except Exception as scope_error:
+                    logger.warning("Scheduled scan %s rejected by scope guard: %s", schedule.id, scope_error)
+                    schedule.next_run = CronParser.get_next_run(schedule.cron_expression, now)
+                    db.commit()
+                    continue
+
+                pinned_ip = str(ipaddress.ip_address(target.ip_address)) if target.ip_address else resolved[0]
                 asset = db.query(Asset).filter(
                     Asset.target_id == target.id,
                     Asset.tenant_id == tenant_uuid,
@@ -454,13 +468,13 @@ def check_scheduled_scans():
                     asset = Asset(
                         tenant_id=tenant_uuid,
                         target_id=target.id,
-                        ip_address=target.ip_address or target.domain,
+                        ip_address=pinned_ip,
                     )
                     db.add(asset)
                     db.flush()
+                else:
+                    asset.ip_address = pinned_ip
 
-                scan_type = schedule.scan_type.upper()
-                params = dict(schedule.parameters or {})
                 scan = Scan(
                     tenant_id=tenant_uuid,
                     target_id=target.id,
@@ -472,7 +486,6 @@ def check_scheduled_scans():
                 db.flush()
                 scan_uuid = scan.id
                 asset_uuid = asset.id
-                target_address = asset.ip_address
                 target_domain = target.domain
                 schedule.last_run = now
                 schedule.next_run = CronParser.get_next_run(schedule.cron_expression, now)
@@ -482,34 +495,29 @@ def check_scheduled_scans():
                     if scan_type == "NETWORK":
                         task = run_network_scan.delay(
                             str(tenant_uuid), str(scan_uuid), str(asset_uuid),
-                            target_address, params.get("ports", [22, 80, 443, 8080]),
+                            pinned_ip, params.get("ports", [22, 80, 443, 8080]),
                         )
                     elif scan_type == "WEB":
-                        target_url = params.get("target_url") or target_domain or target_address
+                        target_url = params.get("target_url") or target_domain or pinned_ip
                         if not str(target_url).startswith(("http://", "https://")):
                             target_url = f"https://{target_url}"
                         task = run_web_scan.delay(
                             str(tenant_uuid), str(scan_uuid), str(asset_uuid), str(target_url),
                         )
                     elif scan_type == "SAST":
+                        code_path = str(params.get("code_path", ""))
                         task = run_sast_scan.delay(
-                            str(tenant_uuid), str(scan_uuid), str(asset_uuid), str(params.get("code_path", "")),
+                            str(tenant_uuid), str(scan_uuid), str(asset_uuid), code_path,
                         )
                     elif scan_type == "CLOUD":
+                        provider = str(params.get("provider", "aws")).lower()
+                        if provider not in {"aws", "azure", "gcp"}:
+                            raise ValueError("Unsupported cloud provider")
                         task = run_cloud_scan.delay(
-                            str(tenant_uuid), str(scan_uuid), str(asset_uuid), str(params.get("provider", "aws")),
+                            str(tenant_uuid), str(scan_uuid), str(asset_uuid), provider,
                         )
                     else:
-                        set_worker_tenant(db, tenant_uuid)
-                        failed_scan = db.query(Scan).filter(
-                            Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid
-                        ).first()
-                        if failed_scan:
-                            failed_scan.status = "FAILED"
-                            failed_scan.error_message = f"Unsupported scheduled scan type: {scan_type}"
-                            failed_scan.finished_at = datetime.utcnow()
-                            db.commit()
-                        continue
+                        raise ValueError(f"Unsupported scheduled scan type: {scan_type}")
 
                     set_worker_tenant(db, tenant_uuid)
                     persisted_scan = db.query(Scan).filter(
@@ -520,6 +528,7 @@ def check_scheduled_scans():
                         db.commit()
                     dispatched += 1
                 except Exception as dispatch_error:
+                    db.rollback()
                     set_worker_tenant(db, tenant_uuid)
                     failed_scan = db.query(Scan).filter(
                         Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid
