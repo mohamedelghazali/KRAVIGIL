@@ -1,41 +1,94 @@
 # KRAVIGIL Production Deployment Guide
 
-## 1. Prerequisites
-- Linux Server (Ubuntu 22.04 LTS recommended)
-- Docker Engine v24+
-- Docker Compose v2+
-- Minimum 4 CPU cores, 16GB RAM, 100GB SSD
+## Prerequisites
 
-## 2. Security Hardening
-Before deployment, ensure the following:
-- **TLS Termination**: Place KRAVIGIL behind an NGINX reverse proxy with valid SSL certificates (Let's Encrypt).
-- **Database Backups**: Configure a cron job to dump PostgreSQL daily and sync to off-site storage (S3/MinIO).
-- **Secrets Management**: Do not use `.env` files in production. Use HashiCorp Vault or AWS Secrets Manager to inject secrets into the containers.
-- **Firewall**: Close all ports except 80 and 443.
+- Linux host with Docker Engine and the Docker Compose v2 plugin
+- Public DNS record for the application domain
+- Valid HTTPS certificate for the application domain (Let's Encrypt files mounted at `/etc/letsencrypt`)
+- PostgreSQL persistent storage and a tested off-host backup destination
+- SMTP credentials for password-reset delivery
+- At least 4 CPU cores, 16 GB RAM and 100 GB persistent storage; size resources against measured workload
 
-## 3. Deployment Steps
-1. Clone the repository to `/opt/kravigil`.
-2. Create a `docker-compose.prod.yml` overriding the default environment variables.
-3. Launch the stack:
-   ```bash
-   docker-compose -f infrastructure/docker-compose.yml -f docker-compose.prod.yml up -d
-   ```
-4. Run database migrations:
-   ```bash
-   docker-compose exec backend alembic upgrade head
-   ```
-5. Create the initial admin user:
-   ```bash
-   docker-compose exec backend python /app/scripts/seed_db.py
-   ```
+## 1. Configure secrets
 
-## 4. Monitoring & Observability
-- **Metrics**: Prometheus scrapes `http://backend:8000/metrics`.
-- **Logs**: Ship JSON logs from all containers to ELK Stack or Datadog.
-- **Tracing**: OpenTelemetry exports traces to Jaeger or Tempo.
-- **Alerts**: Set up Grafana alerts for high `kravigil_requests_inprogress` or failed scans.
+Copy `.env.example` to `.env`. Replace every `CHANGE_ME` value. Do not commit `.env`.
 
-## 5. Scaling
-- **Backend**: Scale horizontally behind NGINX (`docker-compose up -d --scale backend=3`).
-- **Workers**: Scale based on CPU usage (`docker-compose up -d --scale worker=10`).
-- **Network Engine**: Scale horizontally; the backend will load-balance via gRPC client round-robin.
+Generate URL-safe random secrets, for example:
+
+```bash
+openssl rand -hex 32
+```
+
+Use unique values for `SECRET_KEY`, `DB_PASSWORD`, `REDIS_PASSWORD`, `MINIO_PASSWORD`, `GRAFANA_PASSWORD`, `KRAVIGIL_ENGINE_AUTH_TOKEN`, SMTP credentials and the initial administrator password. The deployment script rejects empty or placeholder values and requires HTTPS.
+
+Set:
+
+- `FRONTEND_URL=https://your-real-domain.example`
+- `ALLOWED_ORIGINS=["https://your-real-domain.example"]`
+- `ADMIN_EMAIL` and a unique strong `ADMIN_PASSWORD`
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and `SMTP_FROM_ADDRESS`
+- `MINIO_SOURCE_USER/PASSWORD` and `MINIO_TARGET_USER/PASSWORD`
+
+`GEMINI_API_KEY` is optional; AI analysis tasks require it.
+
+## 2. Configure the network engine TLS identity
+
+The C++ gRPC server requires a TLS certificate, private key and shared authentication token. The worker verifies the server certificate using the CA file.
+
+Create a self-signed certificate for the internal Compose DNS name (or use a certificate signed by your internal CA):
+
+```bash
+mkdir -p infrastructure/certs/network-engine
+openssl req -x509 -newkey rsa:3072 -nodes \
+  -keyout infrastructure/certs/network-engine/server.key \
+  -out infrastructure/certs/network-engine/server.crt \
+  -days 365 -subj "/CN=network_engine" \
+  -addext "subjectAltName=DNS:network_engine"
+cp infrastructure/certs/network-engine/server.crt infrastructure/certs/network-engine/ca.crt
+sudo chown 10001:10001 infrastructure/certs/network-engine/server.key
+sudo chmod 0440 infrastructure/certs/network-engine/server.key
+chmod 0444 infrastructure/certs/network-engine/server.crt infrastructure/certs/network-engine/ca.crt
+```
+
+The certificate must include `DNS:network_engine` in its subject alternative names. The server key is mounted read-only and is readable by the dedicated container UID 10001. These files are excluded from Git.
+
+## 3. Configure HTTPS termination
+
+Update all three occurrences of the placeholder domain in `infrastructure/nginx/nginx.prod.conf` to the exact domain in `FRONTEND_URL`. Ensure the matching files exist:
+
+- `/etc/letsencrypt/live/your-real-domain.example/fullchain.pem`
+- `/etc/letsencrypt/live/your-real-domain.example/privkey.pem`
+
+The deployment script checks the configured NGINX server name and certificate files before building.
+
+## 4. Deploy
+
+From the repository root:
+
+```bash
+./scripts/go_live.sh
+```
+
+The script validates the environment, verifies the network-engine certificates, validates the merged Compose configuration, builds images, starts dependencies, applies Alembic migrations, seeds the initial administrator, starts remaining services and checks the HTTPS system-health endpoint.
+
+The script does not perform a production deployment from this chat. Run it on the intended host after reviewing the configuration.
+
+## 5. Post-deployment acceptance
+
+Before opening public access:
+
+1. Confirm every container is healthy and inspect backend, worker, network-engine, database and NGINX logs.
+2. Verify login, MFA challenge, refresh, logout, password reset email, session revocation and tenant isolation.
+3. Run network, web, SAST and cloud scan workflows only against explicitly authorized targets.
+4. Verify report generation, evidence upload/download, webhook delivery, metrics and Grafana provisioning.
+5. Perform a PostgreSQL and MinIO backup, restore both into an isolated environment, and verify evidence hashes.
+6. Confirm MinIO versioning/Object Lock retention settings and replication state rather than assuming they are enabled by the Compose file.
+7. Review firewall rules; expose only the intended HTTPS entry point. Do not publish PostgreSQL, Redis, MinIO, Grafana or the gRPC engine directly.
+
+## 6. Operational cautions
+
+- Use an external secrets manager for production secret injection where available.
+- Pin and regularly update container image versions after staging validation; do not rely on mutable `latest` tags for a controlled release.
+- Set resource limits and database connection capacity to match the deployment scale.
+- The production Compose file uses multiple replicas; validate actual load balancing and shared state behavior in the chosen Compose/Swarm/Kubernetes runtime.
+- Do not declare production readiness until CI, container builds, integration tests, security checks, backup/restore and a staging acceptance run all pass.
