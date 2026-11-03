@@ -107,6 +107,20 @@ def _set_authenticated_tenant(db: Session, tenant_id) -> None:
 
 security_service = SecurityService()
 
+def _get_api_key_owner(db: Session, api_key: APIKey) -> User:
+    """Resolve an API key to its owner, failing closed for legacy or invalid keys."""
+    if api_key.created_by_user_id is None:
+        raise HTTPException(status_code=401, detail="API Key has no valid owner; rotate it")
+    user = db.query(User).filter(
+        User.id == api_key.created_by_user_id,
+        User.tenant_id == api_key.tenant_id,
+        User.is_active.is_(True),
+    ).first()
+    if user is None:
+        raise HTTPException(status_code=401, detail="API Key owner not found or inactive")
+    return user
+
+
 def get_current_user(request: Request, token: Optional[str] = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
     if db.get_bind().dialect.name == "postgresql":
         db.execute(text("SELECT set_config('app.auth_lookup', 'true', true)"))
@@ -118,17 +132,8 @@ def get_current_user(request: Request, token: Optional[str] = Depends(oauth2_sch
         if not api_key or (api_key.expires_at and api_key.expires_at < datetime.utcnow()):
             raise HTTPException(status_code=401, detail="Invalid or expired API Key")
 
-        # An API key inherits the current permissions of its creator. Never
-        # select an arbitrary tenant member: doing so can silently elevate keys.
-        if api_key.created_by_user_id is None:
-            raise HTTPException(status_code=401, detail="API Key has no valid owner; rotate it")
-        user = db.query(User).filter(
-            User.id == api_key.created_by_user_id,
-            User.tenant_id == api_key.tenant_id,
-            User.is_active.is_(True),
-        ).first()
-        if not user:
-            raise HTTPException(status_code=401, detail="API Key owner not found or inactive")
+        # API keys inherit the creator's current role; never elevate to a different tenant user.
+        user = _get_api_key_owner(db, api_key)
         _set_authenticated_tenant(db, user.tenant_id)
         return user
 
