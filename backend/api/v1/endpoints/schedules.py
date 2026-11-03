@@ -6,7 +6,7 @@ from typing import List
 from backend.database.models.schedule import ScheduledScan
 from backend.database.models.target import Target
 from backend.database.models.user import User
-from backend.database.session import get_tenant_db
+from backend.database.tenant import get_tenant_db
 from backend.core.security import require_role, get_current_user
 from backend.core.exceptions import KravigilException
 from backend.services.scheduler.cron_parser import CronParser
