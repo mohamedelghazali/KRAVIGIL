@@ -10,8 +10,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 RUN wget https://github.com/projectdiscovery/nuclei/releases/download/v3.11.1/nuclei_3.11.1_linux_amd64.zip \
-    && unzip nuclei_3.1.0_linux_amd64.zip -d /usr/local/bin/ \
-    && rm nuclei_3.1.0_linux_amd64.zip \
+    && unzip nuclei_3.11.1_linux_amd64.zip -d /usr/local/bin/ \
+    && rm nuclei_3.11.1_linux_amd64.zip \
     && chmod +x /usr/local/bin/nuclei
 
 RUN python -m venv /opt/semgrep \
