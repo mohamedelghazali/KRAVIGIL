@@ -83,7 +83,7 @@ class ScopeGuard:
 
     def _resolve(self, hostname: str) -> List[str]:
         results = socket.getaddrinfo(hostname, None, family=socket.AF_UNSPEC, type=socket.SOCK_STREAM)
-        return sorted({item[4][0] for item in results})
+        return sorted({str(item[4][0]) for item in results})
 
     def _is_explicitly_allowed(self, address: ipaddress._BaseAddress) -> bool:
         return any(address.version == net.version and address in net for net in self.allowed_networks)
