@@ -26,10 +26,10 @@ require_secret() {
   fi
 }
 
-for name in SECRET_KEY DB_PASSWORD REDIS_PASSWORD MINIO_PASSWORD GRAFANA_PASSWORD KRAVIGIL_ENGINE_AUTH_TOKEN ADMIN_PASSWORD SMTP_USERNAME SMTP_PASSWORD MINIO_SOURCE_PASSWORD MINIO_TARGET_PASSWORD; do
+for name in SECRET_KEY DB_PASSWORD APP_DB_PASSWORD REDIS_PASSWORD MINIO_PASSWORD GRAFANA_PASSWORD KRAVIGIL_ENGINE_AUTH_TOKEN ADMIN_PASSWORD SMTP_USERNAME SMTP_PASSWORD MINIO_SOURCE_PASSWORD MINIO_TARGET_PASSWORD; do
   case "$name" in
     SECRET_KEY|KRAVIGIL_ENGINE_AUTH_TOKEN) require_secret "$name" 64 ;;
-    DB_PASSWORD|REDIS_PASSWORD|MINIO_PASSWORD|GRAFANA_PASSWORD|SMTP_PASSWORD|MINIO_SOURCE_PASSWORD|MINIO_TARGET_PASSWORD) require_secret "$name" 32 ;;
+    DB_PASSWORD|APP_DB_PASSWORD|REDIS_PASSWORD|MINIO_PASSWORD|GRAFANA_PASSWORD|SMTP_PASSWORD|MINIO_SOURCE_PASSWORD|MINIO_TARGET_PASSWORD) require_secret "$name" 32 ;;
     *) require_secret "$name" 16 ;;
   esac
 done
@@ -42,7 +42,7 @@ for name in MINIO_USER MINIO_SOURCE_USER MINIO_TARGET_USER SMTP_HOST SMTP_FROM_A
 done
 
 # Passwords embedded in DATABASE_URL / REDIS_URL must be URL-safe.
-for name in DB_PASSWORD REDIS_PASSWORD; do
+for name in DB_PASSWORD APP_DB_PASSWORD REDIS_PASSWORD; do
   if [[ ! "${!name}" =~ ^[A-Za-z0-9_-]+$ ]]; then
     echo "ERROR: $name may contain only letters, digits, underscore and hyphen." >&2
     exit 1
@@ -84,23 +84,39 @@ fi
 docker compose version >/dev/null
 docker compose "${BASE_COMPOSE[@]}" config --quiet
 
-echo "[1/6] Building production images..."
+echo "[1/7] Building production images..."
 docker compose "${BASE_COMPOSE[@]}" build
 
-echo "[2/6] Starting data services and the TLS-protected network engine..."
-docker compose "${BASE_COMPOSE[@]}" up -d db redis minio target-minio network_engine
+echo "[2/7] Starting data services and the TLS-protected network engine..."
+docker compose "${BASE_COMPOSE[@]}" up -d --wait db redis minio target-minio network_engine
 
-echo "[3/6] Starting backend after healthy dependencies..."
-docker compose "${BASE_COMPOSE[@]}" up -d backend
+MIGRATION_DATABASE_URL="postgresql://kravigil_admin:${DB_PASSWORD}@db:5432/kravigil_db"
+echo "[3/7] Applying database migrations with the restricted migration workflow..."
+docker compose "${BASE_COMPOSE[@]}" run --rm --no-deps -e DATABASE_URL="$MIGRATION_DATABASE_URL" backend alembic upgrade head
 
-echo "[4/6] Applying database migrations..."
-docker compose "${BASE_COMPOSE[@]}" exec -T backend alembic upgrade head
+echo "[4/7] Ensuring the initial administrator exists..."
+docker compose "${BASE_COMPOSE[@]}" run --rm --no-deps -e DATABASE_URL="$MIGRATION_DATABASE_URL" backend python /app/scripts/seed_db.py
 
-echo "[5/6] Ensuring the initial administrator exists..."
-docker compose "${BASE_COMPOSE[@]}" exec -T backend python /app/scripts/seed_db.py
+echo "[5/7] Provisioning the non-superuser application database role..."
+docker compose "${BASE_COMPOSE[@]}" exec -T db psql -v ON_ERROR_STOP=1 \
+  -U kravigil_admin -d kravigil_db \
+  -v app_user=kravigil_app -v app_password="$APP_DB_PASSWORD" -v admin_user=kravigil_admin <<'SQL'
+SELECT format('CREATE ROLE %I LOGIN', :'app_user')
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'app_user') \\gexec
+ALTER ROLE :"app_user" WITH LOGIN PASSWORD :'app_password'
+  NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION;
+GRANT CONNECT ON DATABASE kravigil_db TO :"app_user";
+GRANT USAGE ON SCHEMA public TO :"app_user";
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO :"app_user";
+GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO :"app_user";
+ALTER DEFAULT PRIVILEGES FOR ROLE :"admin_user" IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO :"app_user";
+ALTER DEFAULT PRIVILEGES FOR ROLE :"admin_user" IN SCHEMA public
+  GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO :"app_user";
+SQL
 
-echo "[6/6] Starting remaining services..."
-docker compose "${BASE_COMPOSE[@]}" up -d worker frontend nginx prometheus grafana
+echo "[6/7] Starting the application with RLS-enforced credentials..."
+docker compose "${BASE_COMPOSE[@]}" up -d backend worker frontend nginx prometheus grafana
 
 echo "Deployment commands completed. Checking application health..."
 curl --fail --silent --show-error "${FRONTEND_URL%/}/api/v1/system/health"
