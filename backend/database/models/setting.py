@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, ForeignKey, Index
+from sqlalchemy import JSON, Column, String, DateTime, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from backend.database.models.base import Base
 
@@ -10,7 +10,7 @@ class TenantSetting(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
     key = Column(String(100), nullable=False, index=True)
-    value = Column(JSONB, nullable=False)
+    value = Column(JSON().with_variant(JSONB, "postgresql"), nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     __table_args__ = (
