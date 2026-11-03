@@ -11,6 +11,7 @@ import Settings from '../views/Settings.vue'
 import UserManagement from '../views/UserManagement.vue'
 import AuditLogs from '../views/AuditLogs.vue'
 import Schedules from '../views/Schedules.vue'
+import Agents from '../views/Agents.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -21,6 +22,7 @@ const router = createRouter({
     { path: '/assets', component: Assets, meta: { requiresAuth: true } },
     { path: '/scans', component: Scans, meta: { requiresAuth: true } },
     { path: '/schedules', component: Schedules, meta: { requiresAuth: true } },
+    { path: '/agents', component: Agents, meta: { requiresAuth: true } },
     { path: '/findings', component: Findings, meta: { requiresAuth: true } },
     { path: '/risk', component: Risk, meta: { requiresAuth: true } },
     { path: '/reports', component: Reports, meta: { requiresAuth: true } },
