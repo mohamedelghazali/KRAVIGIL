@@ -8,7 +8,7 @@ from backend.database.models.asset import Asset
 from backend.database.models.scan import Scan
 from backend.database.models.user import User
 from backend.database.tenant import get_tenant_db
-from backend.core.security import get_current_user, require_role, require_permission
+from backend.core.security import require_permission
 from backend.security.rbac import Permission
 from backend.core.exceptions import KravigilException, ScopeViolationException
 from backend.core.audit_service import AuditService
@@ -205,7 +205,7 @@ def start_sast_scan(scan_in: SASTScanCreate, current_user: User = Depends(requir
 def cancel_scan(
     scan_id: uuid.UUID,
     request: Request,
-    current_user: User = Depends(require_permission(Permission.SCAN_CREATE)),
+    current_user: User = Depends(require_permission(Permission.SCAN_CANCEL)),
     db: Session = Depends(get_tenant_db)
 ):
     scan = db.query(Scan).filter(Scan.id == scan_id).first()
