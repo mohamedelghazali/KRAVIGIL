@@ -1,14 +1,15 @@
 import uuid
 from datetime import datetime
 from sqlalchemy import JSON, Column, String, DateTime, ForeignKey, Integer, Text, Index
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy import Uuid
+from sqlalchemy.dialects.postgresql import JSONB
 from backend.database.models.base import Base
 
 class AIAnalysisRecord(Base):
     __tablename__ = 'ai_analysis_records'
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey('organizations.id', ondelete='CASCADE'), nullable=False, index=True)
-    finding_id = Column(UUID(as_uuid=True), ForeignKey('findings.id', ondelete='CASCADE'), nullable=False, index=True)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(Uuid(as_uuid=True), ForeignKey('organizations.id', ondelete='CASCADE'), nullable=False, index=True)
+    finding_id = Column(Uuid(as_uuid=True), ForeignKey('findings.id', ondelete='CASCADE'), nullable=False, index=True)
     provider = Column(String(50), nullable=False)
     model_name = Column(String(100), nullable=False)
     prompt_tokens = Column(Integer, default=0, nullable=False)

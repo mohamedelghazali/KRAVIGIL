@@ -2,7 +2,8 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import JSON, Column, DateTime, ForeignKey, Index, String, UniqueConstraint
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import Uuid
+from sqlalchemy.dialects.postgresql import JSONB
 
 from backend.database.models.base import Base
 
@@ -10,9 +11,9 @@ from backend.database.models.base import Base
 class ThreatIndicator(Base):
     __tablename__ = "threat_indicators"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id = Column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("organizations.id", ondelete="CASCADE"),
         nullable=False,
         index=True,

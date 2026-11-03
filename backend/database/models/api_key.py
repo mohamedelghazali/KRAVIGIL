@@ -2,14 +2,14 @@ import uuid
 import hashlib
 from datetime import datetime
 from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean, Index
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Uuid
 from backend.database.models.base import Base
 
 class APIKey(Base):
     __tablename__ = "api_keys"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(Uuid(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(255), nullable=False)
     prefix = Column(String(10), nullable=False, index=True)
     key_hash = Column(String(64), nullable=False, unique=True, index=True)

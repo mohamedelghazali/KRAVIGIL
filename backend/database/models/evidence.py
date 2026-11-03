@@ -1,15 +1,16 @@
 import uuid
 from datetime import datetime
 from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Index, JSON, String
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import Uuid
+from sqlalchemy.dialects.postgresql import JSONB
 from backend.database.models.base import Base
 
 class Evidence(Base):
     __tablename__ = "evidence"
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
-    scan_id = Column(UUID(as_uuid=True), ForeignKey("scans.id", ondelete="CASCADE"), nullable=False, index=True)
-    finding_id = Column(UUID(as_uuid=True), ForeignKey("findings.id", ondelete="SET NULL"), nullable=True, index=True)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(Uuid(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    scan_id = Column(Uuid(as_uuid=True), ForeignKey("scans.id", ondelete="CASCADE"), nullable=False, index=True)
+    finding_id = Column(Uuid(as_uuid=True), ForeignKey("findings.id", ondelete="SET NULL"), nullable=True, index=True)
     object_key = Column(String(512), nullable=False, unique=True)
     object_version_id = Column(String(255))
     storage_backend = Column(String(50), default="minio", nullable=False)

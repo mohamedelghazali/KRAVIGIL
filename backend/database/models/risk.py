@@ -1,16 +1,17 @@
 import uuid
 from datetime import datetime
 from sqlalchemy import JSON, Column, String, Float, Boolean, DateTime, ForeignKey, Index
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy import Uuid
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from backend.database.models.base import Base
 
 class RiskAssessment(Base):
     __tablename__ = "risk_assessments"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
-    finding_id = Column(UUID(as_uuid=True), ForeignKey("findings.id", ondelete="CASCADE"), nullable=False, index=True)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(Uuid(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    finding_id = Column(Uuid(as_uuid=True), ForeignKey("findings.id", ondelete="CASCADE"), nullable=False, index=True)
     
     cvss_score = Column(Float)
     epss_score = Column(Float)

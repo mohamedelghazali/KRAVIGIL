@@ -12,7 +12,8 @@ from sqlalchemy import (
     UniqueConstraint,
     Index,
 )
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy import Uuid
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 from backend.database.models.base import Base
@@ -23,13 +24,13 @@ finding_observations = Table(
     Base.metadata,
     Column(
         "finding_id",
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("findings.id", ondelete="CASCADE"),
         primary_key=True,
     ),
     Column(
         "observation_id",
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("observations.id", ondelete="CASCADE"),
         primary_key=True,
     ),
@@ -39,15 +40,15 @@ finding_observations = Table(
 class Finding(Base):
     __tablename__ = "findings"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id = Column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("organizations.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     asset_id = Column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("assets.id", ondelete="CASCADE"),
         nullable=False,
         index=True,

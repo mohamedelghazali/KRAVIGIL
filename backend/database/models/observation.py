@@ -2,7 +2,8 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import JSON, Column, DateTime, ForeignKey, Index, String
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import Uuid
+from sqlalchemy.dialects.postgresql import JSONB
 
 from backend.database.models.base import Base
 
@@ -10,21 +11,21 @@ from backend.database.models.base import Base
 class Observation(Base):
     __tablename__ = "observations"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id = Column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("organizations.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     scan_id = Column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("scans.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     asset_id = Column(
-        UUID(as_uuid=True),
+        Uuid(as_uuid=True),
         ForeignKey("assets.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
