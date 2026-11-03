@@ -78,7 +78,11 @@ def run_backup() -> str:
             timeout=int(os.getenv("BACKUP_TIMEOUT_SECONDS", "14400")),
         )
 
-        digest = hashlib.sha256(encrypted_dump.read_bytes()).hexdigest()
+        digest_state = hashlib.sha256()
+        with encrypted_dump.open("rb") as encrypted_file:
+            for chunk in iter(lambda: encrypted_file.read(1024 * 1024), b""):
+                digest_state.update(chunk)
+        digest = digest_state.hexdigest()
         client = Minio(
             endpoint,
             access_key=access_key,
@@ -107,6 +111,7 @@ def run_backup() -> str:
                 client.remove_object(bucket, item.object_name)
                 removed += 1
 
+        Path("/tmp/last-success").touch()
         logger.info(
             "Backup uploaded: bucket=%s key=%s size=%s sha256=%s expired_objects_removed=%s",
             bucket, object_key, encrypted_dump.stat().st_size, digest, removed,
