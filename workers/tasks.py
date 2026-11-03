@@ -134,6 +134,8 @@ def run_cloud_scan(self, tenant_id: str, scan_id: str, asset_id: str, provider: 
             db.bulk_save_objects(observations)
             db.commit()
 
+        if scan.status == "CANCELLED":
+            return {"status": "cancelled", "scan_id": scan_id}
         scan.status = "COMPLETED"
         scan.finished_at = datetime.utcnow()
         db.commit()
@@ -196,6 +198,8 @@ def run_network_scan(self, tenant_id: str, scan_id: str, asset_id: str, target_i
             db.commit()
 
         scan = db.query(Scan).filter(Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid).first()
+        if scan.status == "CANCELLED":
+            return {"status": "cancelled", "scan_id": scan_id}
         scan.status = "COMPLETED"
         scan.finished_at = datetime.utcnow()
         db.commit()
@@ -205,7 +209,7 @@ def run_network_scan(self, tenant_id: str, scan_id: str, asset_id: str, target_i
     except Exception as exc:
         db.rollback()
         scan = db.query(Scan).filter(Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid).first()
-        if scan is not None:
+        if scan is not None and scan.status != "CANCELLED":
             scan.status = "FAILED"
             scan.error_message = str(exc)[:2048]
             scan.finished_at = datetime.utcnow()
@@ -238,6 +242,8 @@ def run_web_scan(self, tenant_id: str, scan_id: str, asset_id: str, target_url: 
         ]
         if observations:
             db.add_all(observations)
+        if scan.status == "CANCELLED":
+            return {"status": "cancelled", "scan_id": scan_id}
         scan.status = "COMPLETED"
         scan.finished_at = datetime.utcnow()
         db.commit()
@@ -293,6 +299,8 @@ def run_sast_scan(self, tenant_id: str, scan_id: str, asset_id: str, code_path: 
             ))
         if observations:
             db.add_all(observations)
+        if scan.status == "CANCELLED":
+            return {"status": "cancelled", "scan_id": scan_id}
         scan.status = "COMPLETED"
         scan.finished_at = datetime.utcnow()
         db.commit()
