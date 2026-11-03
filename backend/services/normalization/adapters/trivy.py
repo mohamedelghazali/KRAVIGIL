@@ -15,7 +15,7 @@ class TrivyAdapter(BaseEngineAdapter):
         return self.parse_output(raw_output)
 
     def parse_output(self, raw_output: str) -> List[Dict[str, Any]]:
-        results = []
+        results: List[Dict[str, Any]] = []
         if not raw_output.strip():
             return results
         try:
