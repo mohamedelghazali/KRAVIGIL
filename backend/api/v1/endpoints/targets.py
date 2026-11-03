@@ -56,6 +56,8 @@ def create_target(
     current_user: User = Depends(require_role(["admin", "analyst"])),
     db: Session = Depends(get_tenant_db)
 ):
+    if target_in.is_authorized and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only administrators can authorize scan targets")
     try:
         new_target = Target(
             tenant_id=current_user.tenant_id,
@@ -110,6 +112,8 @@ def update_target(
     target = db.query(Target).filter(Target.id == target_id).first()
     if not target:
         raise HTTPException(status_code=404, detail="Target not found")
+    if target_in.is_authorized is True and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only administrators can authorize scan targets")
 
     if target_in.name is not None: target.name = target_in.name
     if target_in.ip_address is not None: target.ip_address = target_in.ip_address
