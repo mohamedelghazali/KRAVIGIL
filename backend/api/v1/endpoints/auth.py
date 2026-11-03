@@ -1,5 +1,6 @@
 import uuid
 import hashlib
+import secrets
 import logging
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks
@@ -8,7 +9,7 @@ from sqlalchemy.orm import Session
 from backend.database.session import get_db
 from backend.database.models.user import User
 from backend.database.models.session import UserSession, PasswordResetToken
-from backend.core.security import security_service, get_settings
+from backend.core.security import security_service, get_settings, get_current_user
 from backend.core.exceptions import KravigilException
 from backend.core.audit_service import AuditService
 from backend.services.notifications.email_dispatcher import EmailDispatcher
@@ -35,6 +36,10 @@ class ResetPasswordRequest(BaseModel):
 
 class MFAVerifyRequest(BaseModel):
     mfa_token: str
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
 
 @router.post("/login", response_model=TokenResponse)
 def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
@@ -214,4 +219,28 @@ def reset_password(req: ResetPasswordRequest, db: Session = Depends(get_db)):
     db.query(UserSession).filter(UserSession.user_id == user.id).update({"is_revoked": True})
     db.commit()
 
+    return {"status": "success"}
+
+@router.post("/change-password")
+def change_password(
+    req: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if len(req.new_password) < 12:
+        raise HTTPException(status_code=400, detail="New password must be at least 12 characters")
+    if not security_service.verify_password(req.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+
+    current_user.hashed_password = security_service.get_password_hash(req.new_password)
+    db.query(UserSession).filter(
+        UserSession.user_id == current_user.id,
+        UserSession.is_revoked == False
+    ).update({"is_revoked": True}, synchronize_session=False)
+    db.commit()
+
+    AuditService.log_event(
+        "PASSWORD_CHANGED", "user", str(current_user.id),
+        current_user.tenant_id, current_user.id
+    )
     return {"status": "success"}
