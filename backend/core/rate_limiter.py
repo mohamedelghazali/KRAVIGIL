@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import redis
 from fastapi import Request, HTTPException
@@ -23,7 +24,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         tenant_key = "anonymous"
         if authorization.startswith("Bearer "):
             token = authorization.split(" ", 1)[1]
-            tenant_key = hash(token) % 100000
+            tenant_key = hashlib.sha256(token.encode("utf-8")).hexdigest()[:24]
 
         key = f"ratelimit:{tenant_key}:{client_ip}"
         try:
