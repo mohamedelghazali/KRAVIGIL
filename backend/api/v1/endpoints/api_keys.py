@@ -9,13 +9,13 @@ from backend.database.tenant import get_tenant_db
 from backend.core.security import require_role
 from backend.core.exceptions import KravigilException
 from backend.core.audit_service import AuditService
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 router = APIRouter()
 
 class APIKeyCreate(BaseModel):
-    name: str
-    expires_in_days: int = 365
+    name: str = Field(min_length=1, max_length=255)
+    expires_in_days: int = Field(default=365, ge=0, le=3650)
 
 class APIKeyCreateResponse(BaseModel):
     id: uuid.UUID
