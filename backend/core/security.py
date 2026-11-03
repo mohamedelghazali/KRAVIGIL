@@ -4,7 +4,7 @@ import hashlib
 import pyotp
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, Tuple
-from jose import JWTError, jwt
+import jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
@@ -83,7 +83,7 @@ class SecurityService:
             if payload.get("type") != expected_type:
                 raise HTTPException(status_code=401, detail="Invalid token type")
             return payload
-        except JWTError as e:
+        except jwt.PyJWTError as e:
             logger.warning(f"Invalid token: {e}")
             raise HTTPException(status_code=401, detail="Could not validate credentials")
 
