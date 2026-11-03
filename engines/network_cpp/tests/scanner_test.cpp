@@ -11,25 +11,24 @@ protected:
     boost::asio::io_context io_context;
 };
 
-TEST_F(AsyncScannerTest, HandlesInvalidPort) {
-    std::vector<uint32_t> ports = {0, 70000};
-    bool callback_called = false;
+TEST_F(AsyncScannerTest, RejectsInvalidPorts) {
+    const std::vector<uint32_t> zero_port = {0};
+    const std::vector<uint32_t> oversized_port = {70000};
 
-    auto scanner = std::make_shared<AsyncScanner>(
-        io_context,
-        "127.0.0.1",
-        ports,
-        1000,
-        [&](uint32_t port, bool is_open) {
-            callback_called = true;
-            ASSERT_FALSE(is_open);
-        }
+    EXPECT_THROW(
+        std::make_shared<AsyncScanner>(
+            io_context, "127.0.0.1", zero_port, 1000,
+            [](uint32_t, bool) {}
+        ),
+        std::invalid_argument
     );
-
-    scanner->start();
-    io_context.run();
-    // Should complete instantly without crashing
-    EXPECT_TRUE(true);
+    EXPECT_THROW(
+        std::make_shared<AsyncScanner>(
+            io_context, "127.0.0.1", oversized_port, 1000,
+            [](uint32_t, bool) {}
+        ),
+        std::invalid_argument
+    );
 }
 
 TEST_F(AsyncScannerTest, ScansLocalhostClosedPort) {
