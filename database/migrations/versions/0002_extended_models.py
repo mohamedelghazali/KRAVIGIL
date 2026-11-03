@@ -203,4 +203,14 @@ def upgrade() -> None:
         """)
 
 def downgrade() -> None:
-    pass
+    op.drop_table("agent_tasks")
+    op.drop_table("agents")
+    op.drop_table("risk_assessments")
+    op.drop_table("reports")
+    op.drop_table("evidence")
+    op.drop_table("finding_observations")
+    op.drop_table("observations")
+    op.drop_table("audit_logs")
+    op.drop_table("webhooks")
+    op.drop_table("api_keys")
+    op.drop_table("tenant_settings")
