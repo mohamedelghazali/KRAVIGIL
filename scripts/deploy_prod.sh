@@ -91,6 +91,10 @@ docker compose "${BASE_COMPOSE[@]}" build
 echo "[2/7] Starting data services and the TLS-protected network engine..."
 docker compose "${BASE_COMPOSE[@]}" up -d --wait db redis minio target-minio network_engine
 
+ echo "[3/8] Configuring evidence and backup replication..."
+bash infrastructure/minio/replicate.sh
+bash infrastructure/minio/verify_replication.sh
+
 MIGRATION_DATABASE_URL="postgresql://kravigil_admin:${DB_PASSWORD}@db:5432/kravigil_db"
 echo "[3/7] Applying database migrations with the restricted migration workflow..."
 docker compose "${BASE_COMPOSE[@]}" run --rm --no-deps -e DATABASE_URL="$MIGRATION_DATABASE_URL" backend alembic upgrade head
