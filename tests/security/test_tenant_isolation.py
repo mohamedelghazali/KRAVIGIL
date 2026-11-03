@@ -8,6 +8,7 @@ from backend.database.tenant import get_tenant_db
 from backend.database.models.base import Base
 from backend.database.models.user import User, Organization
 from backend.core.security import security_service
+from backend.core import audit_service
 import uuid
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
@@ -36,7 +37,8 @@ app.dependency_overrides[get_tenant_db] = override_get_tenant_db
 client = TestClient(app)
 
 @pytest.fixture(autouse=True)
-def setup_db():
+def setup_db(monkeypatch):
+    monkeypatch.setattr(audit_service, "SessionLocal", TestingSessionLocal)
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     
