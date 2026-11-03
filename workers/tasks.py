@@ -122,8 +122,10 @@ def run_cloud_scan(self, tenant_id: str, scan_id: str, asset_id: str, provider: 
         scan.started_at = datetime.utcnow()
         db.commit()
 
+        if provider.lower() not in {"aws", "azure", "gcp"}:
+            raise ValueError("Unsupported cloud provider")
         adapter = CloudScannerAdapter()
-        results = adapter.scan(provider)
+        results = adapter.scan(provider.lower())
 
         observations = []
         for res in results:
@@ -145,7 +147,17 @@ def run_cloud_scan(self, tenant_id: str, scan_id: str, asset_id: str, provider: 
         return {"status": "completed", "scan_id": scan_id, "findings": len(results)}
     except Exception as e:
         db.rollback()
-        logger.error(f"Cloud scan {scan_id} failed: {str(e)}", exc_info=True)
+        logger.error("Cloud scan %s failed: %s", scan_id, e, exc_info=True)
+        if "tenant_uuid" in locals() and "scan_uuid" in locals() and self.request.retries >= 3:
+            failed_scan = db.query(Scan).filter(
+                Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid
+            ).first()
+            if failed_scan is not None and failed_scan.status != "CANCELLED":
+                failed_scan.status = "FAILED"
+                failed_scan.error_message = str(e)[:2048]
+                failed_scan.finished_at = datetime.utcnow()
+                db.commit()
+            raise
         raise self.retry(exc=e, countdown=60, max_retries=3)
     finally:
         _close_worker_session(db)
@@ -235,6 +247,7 @@ def run_web_scan(self, tenant_id: str, scan_id: str, asset_id: str, target_url: 
         scan.started_at = datetime.utcnow()
         db.commit()
 
+        ScopeGuard(get_settings().ALLOWED_SCAN_CIDRS).validate_target(target_url)
         results = NucleiAdapter().scan(target_url)
         observations = [
             Normalizer.from_nuclei_result(tenant_uuid, scan_uuid, asset_uuid, item)
