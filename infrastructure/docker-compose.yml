@@ -119,6 +119,11 @@ services:
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
       - SMTP_FROM_ADDRESS=${SMTP_FROM_ADDRESS:-}
       - SMTP_USE_TLS=${SMTP_USE_TLS:-true}
+      - KRAVIGIL_ENGINE_HOST=network_engine
+      - KRAVIGIL_ENGINE_AUTH_TOKEN=${KRAVIGIL_ENGINE_AUTH_TOKEN:?KRAVIGIL_ENGINE_AUTH_TOKEN must be set}
+      - KRAVIGIL_TLS_CA=/run/secrets/network-engine-ca.crt
+    volumes:
+      - ./certs/network-engine/ca.crt:/run/secrets/network-engine-ca.crt:ro
     depends_on:
       db:
         condition: service_healthy
@@ -147,6 +152,8 @@ services:
       - MINIO_BUCKET=${MINIO_BUCKET:-kravigil-evidence}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - OTX_API_KEY=${OTX_API_KEY:-}
+      - ALLOWED_SCAN_CIDRS=${ALLOWED_SCAN_CIDRS:-[]}
+      - SAST_WORKSPACE_ROOT=/workspace
       - MINIO_SECURE=false
       - KRAVIGIL_ENGINE_HOST=network_engine
       - KRAVIGIL_ENGINE_AUTH_TOKEN=${KRAVIGIL_ENGINE_AUTH_TOKEN:?KRAVIGIL_ENGINE_AUTH_TOKEN must be set}
