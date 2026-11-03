@@ -49,7 +49,7 @@ def _close_worker_session(db) -> None:
     except Exception:
         db.rollback()
     finally:
-        _close_worker_session(db)
+        db.close()
 
 
 def broadcast_ws(tenant_id: str, message: dict):
@@ -198,7 +198,7 @@ def run_network_scan(self, tenant_id: str, scan_id: str, asset_id: str, target_i
         return {"status": "completed", "scan_id": scan_id}
     except Exception as exc:
         db.rollback()
-        scan = db.query(Scan).filter(Scan.id == scan_id, Scan.tenant_id == tenant_id).first()
+        scan = db.query(Scan).filter(Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid).first()
         if scan is not None:
             scan.status = "FAILED"
             scan.error_message = str(exc)[:2048]
@@ -217,7 +217,7 @@ def run_web_scan(self, tenant_id: str, scan_id: str, asset_id: str, target_url: 
         tenant_uuid = uuid.UUID(str(tenant_id))
         scan_uuid = uuid.UUID(str(scan_id))
         asset_uuid = uuid.UUID(str(asset_id))
-        db.execute(text("SELECT set_config('app.tenant_id', :tenant_id, true)"), {"tenant_id": str(tenant_uuid)})
+        set_worker_tenant(db, tenant_uuid)
         scan = db.query(Scan).filter(Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid).first()
         if scan is None:
             raise ValueError("Scan not found for tenant")
@@ -256,8 +256,11 @@ def run_web_scan(self, tenant_id: str, scan_id: str, asset_id: str, target_url: 
 def run_sast_scan(self, tenant_id: str, scan_id: str, asset_id: str, code_path: str):
     db = SessionLocal()
     try:
-        db.execute(text("SELECT set_config('app.tenant_id', :tenant_id, true)"), {"tenant_id": str(tenant_id)})
-        scan = db.query(Scan).filter(Scan.id == scan_id, Scan.tenant_id == tenant_id).first()
+        tenant_uuid = uuid.UUID(str(tenant_id))
+        scan_uuid = uuid.UUID(str(scan_id))
+        asset_uuid = uuid.UUID(str(asset_id))
+        set_worker_tenant(db, tenant_uuid)
+        scan = db.query(Scan).filter(Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid).first()
         if scan is None:
             raise ValueError("Scan not found for tenant")
         source_path = Path(code_path).resolve(strict=True)
@@ -307,7 +310,7 @@ def correlate_findings(tenant_id: str, scan_id: str, asset_id: str):
     try:
         db.execute(text("SELECT set_config('app.tenant_id', :tenant_id, true)"), {"tenant_id": str(tenant_id)})
         observations = db.query(Observation).filter(
-            Observation.tenant_id == uuid.UUID(str(tenant_id)),
+            Observation.tenant_id == tenant_uuid,
             Observation.scan_id == uuid.UUID(str(scan_id)),
         ).all()
         engine = CorrelationEngine(db)
@@ -377,7 +380,7 @@ def analyze_finding_with_ai(tenant_id: str, finding_id: str):
         db.execute(text("SELECT set_config('app.tenant_id', :tenant_id, true)"), {"tenant_id": str(tenant_id)})
         finding = db.query(Finding).filter(
             Finding.id == uuid.UUID(str(finding_id)),
-            Finding.tenant_id == uuid.UUID(str(tenant_id)),
+            Finding.tenant_id == tenant_uuid,
         ).first()
         if finding is None:
             raise ValueError("Finding not found for tenant")
