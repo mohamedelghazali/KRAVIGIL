@@ -9,6 +9,7 @@ from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from backend.core.config import get_settings
 from backend.database.session import get_db
 from backend.database.models.user import User
@@ -95,6 +96,7 @@ class SecurityService:
 security_service = SecurityService()
 
 def get_current_user(request: Request, token: Optional[str] = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+    db.execute(text("SELECT set_config('app.auth_lookup', 'true', true)"))
     api_key_header = request.headers.get("X-API-Key")
     if api_key_header:
         key_hash = hashlib.sha256(api_key_header.encode()).hexdigest()
