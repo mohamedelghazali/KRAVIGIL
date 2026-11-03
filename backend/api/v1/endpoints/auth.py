@@ -30,10 +30,11 @@ def _set_tenant_context(db: Session, tenant_id) -> None:
     if db.get_bind().dialect.name != "postgresql":
         return
     db.execute(
-        text("SELECT set_config('app.tenant_id', :tenant_id, true)"),
+        text("SELECT set_config('app.tenant_id', :tenant_id, false)"),
         {"tenant_id": str(tenant_id)},
     )
-    db.execute(text("SELECT set_config('app.auth_lookup', 'false', true)"))
+    db.execute(text("SELECT set_config('app.auth_lookup', 'false', false)"))
+    db.commit()
 
 class TokenResponse(BaseModel):
     access_token: str
