@@ -49,8 +49,7 @@ add_executable(scanner_test
 )
 
 target_link_libraries(scanner_test
-    Boost::system
-    Threads::Threads
+Threads::Threads
     GTest::gtest_main
     GTest::gmock_main
 )
