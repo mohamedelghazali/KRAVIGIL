@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from backend.api.v1.endpoints import (
     auth, targets, assets, scans, findings, ai_analysis, 
     evidence, reports, risk, agents, webhooks, api_keys, settings, 
-    agent_tasks, system, users, audit_logs, schedules
+    agent_tasks, system, users, audit_logs, schedules, threat_intel
 )
 
 api_router = APIRouter()
@@ -26,3 +26,4 @@ api_router.include_router(audit_logs.router, prefix="/audit-logs", tags=["Audit 
 api_router.include_router(system.router, prefix="/system", tags=["System"])
 
 api_router.include_router(schedules.router, prefix="/schedules", tags=["Scheduled Scans"])
+api_router.include_router(threat_intel.router, prefix="/threat-intel", tags=["Threat Intelligence"])
