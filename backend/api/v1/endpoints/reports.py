@@ -8,7 +8,7 @@ from backend.core.security import get_current_user, require_role
 from backend.database.models.report import Report
 from backend.database.models.scan import Scan
 from backend.database.models.user import User
-from backend.database.session import get_tenant_db
+from backend.database.tenant import get_tenant_db
 from workers.tasks import generate_report
 from backend.services.evidence.minio_client import MinIOClient
 
