@@ -8,7 +8,8 @@ from backend.database.models.asset import Asset
 from backend.database.models.scan import Scan
 from backend.database.models.user import User
 from backend.database.tenant import get_tenant_db
-from backend.core.security import get_current_user, require_role
+from backend.core.security import get_current_user, require_role, require_permission
+from backend.security.rbac import Permission
 from backend.core.exceptions import KravigilException, ScopeViolationException
 from backend.core.audit_service import AuditService
 from backend.security.scope_guard import ScopeGuard
@@ -95,7 +96,7 @@ def _init_scan(db: Session, tenant_id: uuid.UUID, target_id: uuid.UUID, scan_typ
 @router.post("/network", response_model=ScanResponse, status_code=status.HTTP_202_ACCEPTED)
 def start_network_scan(
     scan_in: NetworkScanCreate,
-    current_user: User = Depends(require_role(["admin", "analyst"])),
+    current_user: User = Depends(require_permission(Permission.SCAN_CREATE)),
     db: Session = Depends(get_tenant_db)
 ):
     try:
@@ -117,7 +118,7 @@ def start_network_scan(
         raise KravigilException(message=f"Failed to initiate scan: {str(e)}", status_code=500, error_code="SCAN_INIT_ERROR")
 
 @router.post("/web", response_model=ScanResponse, status_code=status.HTTP_202_ACCEPTED)
-def start_web_scan(scan_in: WebScanCreate, current_user: User = Depends(require_role(["admin", "analyst"])), db: Session = Depends(get_tenant_db)):
+def start_web_scan(scan_in: WebScanCreate, current_user: User = Depends(require_permission(Permission.SCAN_CREATE)), db: Session = Depends(get_tenant_db)):
     scan = None
     try:
         scan, asset = _init_scan(db, current_user.tenant_id, scan_in.target_id, "WEB")
@@ -145,7 +146,7 @@ def start_web_scan(scan_in: WebScanCreate, current_user: User = Depends(require_
 
 
 @router.post("/cloud", response_model=ScanResponse, status_code=status.HTTP_202_ACCEPTED)
-def start_cloud_scan(scan_in: CloudScanCreate, current_user: User = Depends(require_role(["admin", "analyst"])), db: Session = Depends(get_tenant_db)):
+def start_cloud_scan(scan_in: CloudScanCreate, current_user: User = Depends(require_permission(Permission.SCAN_CREATE)), db: Session = Depends(get_tenant_db)):
     provider = scan_in.provider.lower()
     if provider not in {"aws", "azure", "gcp"}:
         raise HTTPException(status_code=422, detail="Unsupported cloud provider")
@@ -170,7 +171,7 @@ def start_cloud_scan(scan_in: CloudScanCreate, current_user: User = Depends(requ
         raise KravigilException(message="Failed to initiate cloud scan", status_code=500, error_code="SCAN_INIT_ERROR")
 
 @router.post("/sast", response_model=ScanResponse, status_code=status.HTTP_202_ACCEPTED)
-def start_sast_scan(scan_in: SASTScanCreate, current_user: User = Depends(require_role(["admin", "analyst"])), db: Session = Depends(get_tenant_db)):
+def start_sast_scan(scan_in: SASTScanCreate, current_user: User = Depends(require_permission(Permission.SCAN_CREATE)), db: Session = Depends(get_tenant_db)):
     from pathlib import PurePosixPath
     requested_path = PurePosixPath(scan_in.code_path)
     if not requested_path.is_absolute() or not str(requested_path).startswith("/workspace/") or ".." in requested_path.parts:
@@ -204,7 +205,7 @@ def start_sast_scan(scan_in: SASTScanCreate, current_user: User = Depends(requir
 def cancel_scan(
     scan_id: uuid.UUID,
     request: Request,
-    current_user: User = Depends(require_role(["admin", "analyst"])),
+    current_user: User = Depends(require_permission(Permission.SCAN_CREATE)),
     db: Session = Depends(get_tenant_db)
 ):
     scan = db.query(Scan).filter(Scan.id == scan_id).first()
@@ -243,7 +244,7 @@ def cancel_scan(
 def delete_scan(
     scan_id: uuid.UUID,
     request: Request,
-    current_user: User = Depends(require_role(["admin"])),
+    current_user: User = Depends(require_permission(Permission.SCAN_DELETE)),
     db: Session = Depends(get_tenant_db)
 ):
     scan = db.query(Scan).filter(Scan.id == scan_id).first()
