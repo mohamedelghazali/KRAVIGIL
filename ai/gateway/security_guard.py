@@ -14,7 +14,7 @@ class SecurityGuard:
 
     def __init__(self):
         self.injection_patterns = [
-            r"(?i)ignore\s+(?:all\s+)?(?:previous|prior|above|earlier)\s+(?:instructions|rules|messages)",
+            r"(?i)ignore\s+(?:all\\s+)?(?:the\\s+)?(?:previous|prior|above|earlier)\s+(?:instructions|rules|messages)",
             r"(?i)system\s+prompt",
             r"(?i)you\s+are\s+now",
             r"(?i)reveal\s+(?:your|the)\s+(?:system\s+)?prompt",
