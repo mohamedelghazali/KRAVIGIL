@@ -46,7 +46,7 @@ def update_finding(
     current_user: User = Depends(require_permission(Permission.FINDING_UPDATE)),
     db: Session = Depends(get_tenant_db)
 ):
-    finding = db.query(Finding).filter(Finding.id == finding_id).first()
+    finding = db.query(Finding).filter(Finding.id == finding_id, Finding.tenant_id == current_user.tenant_id).first()
     if not finding:
         raise HTTPException(status_code=404, detail="Finding not found")
 
