@@ -28,7 +28,7 @@ def _new_agent_identity():
 def _signed_headers(private_key, fingerprint, method, path, body=b"", timestamp=None):
     issued_at = str(int(time.time()) if timestamp is None else timestamp)
     body_hash = hashlib.sha256(body).hexdigest()
-    message = "\\n".join(
+    message = "\n".join(
         (method.upper(), path, issued_at, body_hash)
     ).encode("utf-8")
     signature = private_key.sign(message, padding.PKCS1v15(), hashes.SHA256())
