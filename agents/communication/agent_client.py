@@ -1,6 +1,13 @@
+import base64
+import hashlib
+import json
 import time
 import logging
+from urllib.parse import urlsplit
+
 import httpx
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding
 from typing import Dict, Any, List
 from agents.identity.identity_manager import IdentityManager
 from agents.execution.local_scanner import LocalScanner
@@ -12,9 +19,36 @@ class AgentClient:
         self.control_plane_url = control_plane_url
         self.identity = IdentityManager()
         self.fingerprint, self.public_key = self.identity.generate_identity("kravigil-agent")
+        with open(self.identity.key_path, "rb") as key_file:
+            self.private_key = serialization.load_pem_private_key(
+                key_file.read(), password=None
+            )
         self.client = httpx.Client(verify=self.identity.get_ssl_context(), timeout=30.0)
         self.scanner = LocalScanner()
         self.headers = {"X-Agent-Fingerprint": self.fingerprint}
+
+    def _signed_request(self, method: str, url: str, payload: Dict[str, Any] | None = None):
+        body = b"" if payload is None else json.dumps(
+            payload, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8")
+        timestamp = str(int(time.time()))
+        parsed = urlsplit(url)
+        path = parsed.path + (f"?{parsed.query}" if parsed.query else "")
+        body_hash = hashlib.sha256(body).hexdigest()
+        message = "\\n".join(
+            (method.upper(), path, timestamp, body_hash)
+        ).encode("utf-8")
+        signature = self.private_key.sign(
+            message, padding.PKCS1v15(), hashes.SHA256()
+        )
+        headers = {
+            "X-Agent-Fingerprint": self.fingerprint,
+            "X-Agent-Timestamp": timestamp,
+            "X-Agent-Signature": base64.urlsafe_b64encode(signature).decode("ascii").rstrip("="),
+        }
+        if payload is not None:
+            headers["Content-Type"] = "application/json"
+        return self.client.request(method, url, content=body, headers=headers)
 
     def enroll(self, agent_name: str, version: str, ip_address: str) -> bool:
         payload = {
@@ -36,20 +70,18 @@ class AgentClient:
             return False
 
     def send_heartbeat(self, status: str, ip_address: str) -> bool:
-        payload = {
-            "certificate_fingerprint": self.fingerprint,
-            "status": status,
-            "ip_address": ip_address
-        }
+        payload = {"status": status, "ip_address": ip_address}
         try:
-            response = self.client.post(f"{self.control_plane_url}/api/v1/agents/heartbeat", json=payload, headers=self.headers)
+            response = self._signed_request(
+                "POST", f"{self.control_plane_url}/api/v1/agents/heartbeat", payload
+            )
             return response.status_code == 200
         except Exception as e:
             return False
 
     def poll_and_execute(self) -> None:
         try:
-            response = self.client.get(f"{self.control_plane_url}/api/v1/agent-tasks/poll", headers=self.headers)
+            response = self._signed_request("GET", f"{self.control_plane_url}/api/v1/agent-tasks/poll")
             if response.status_code != 200:
                 return
 
@@ -82,17 +114,15 @@ class AgentClient:
                     "error_message": f"Unknown command: {command}"
                 }
 
-            self.client.post(
-                f"{self.control_plane_url}/api/v1/agent-tasks/{task_id}/submit",
-                json=payload,
-                headers=self.headers
+            self._signed_request(
+                "POST", f"{self.control_plane_url}/api/v1/agent-tasks/{task_id}/submit", payload
             )
         except Exception as e:
             logger.error(f"Task execution failed {task_id}: {e}")
-            self.client.post(
+            self._signed_request(
+                "POST",
                 f"{self.control_plane_url}/api/v1/agent-tasks/{task_id}/submit",
-                json={"status": "FAILED", "error_message": str(e)},
-                headers=self.headers
+                {"status": "FAILED", "error_message": str(e)},
             )
 
     def run_loop(self, interval_seconds: int = 10):
