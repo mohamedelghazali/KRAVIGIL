@@ -49,7 +49,7 @@ class AgentClient:
 
     def poll_and_execute(self) -> None:
         try:
-            response = self.client.get(f"{self.control_plane_url}/api/v1/agents/tasks/poll", headers=self.headers)
+            response = self.client.get(f"{self.control_plane_url}/api/v1/agent-tasks/poll", headers=self.headers)
             if response.status_code != 200:
                 return
 
@@ -83,14 +83,14 @@ class AgentClient:
                 }
 
             self.client.post(
-                f"{self.control_plane_url}/api/v1/agents/tasks/{task_id}/submit",
+                f"{self.control_plane_url}/api/v1/agent-tasks/{task_id}/submit",
                 json=payload,
                 headers=self.headers
             )
         except Exception as e:
             logger.error(f"Task execution failed {task_id}: {e}")
             self.client.post(
-                f"{self.control_plane_url}/api/v1/agents/tasks/{task_id}/submit",
+                f"{self.control_plane_url}/api/v1/agent-tasks/{task_id}/submit",
                 json={"status": "FAILED", "error_message": str(e)},
                 headers=self.headers
             )
