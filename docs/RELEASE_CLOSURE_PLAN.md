@@ -7,6 +7,8 @@
 
 ## Release invariants
 
+**Current reconciliation:** The historical execution log below records prior states; use the current workstream table and latest review addendum for present status. Current main candidate: `ca736c50c82d781fb4547d4438f5fa443864d94b`.
+
 1. Do not push directly to `main`; all changes are proposed through pull requests.
 2. Do not merge while required checks fail, are pending, or are missing.
 3. Do not remove scaffold markers without implementing the behavior or formally removing the capability from runtime exports, routes, configuration, and documentation.
@@ -18,11 +20,11 @@
 
 | ID | Workstream | Required closure evidence | Current status |
 |---|---|---|---|
-| W0 | Baseline and inventory | Exact base SHA, complete scaffold inventory, current workflows and required checks recorded | In progress — PRs #8–#17 merged; latest main SHA `a4be539fff35749e92cb76a64495170e6448cd30`; PR #18 is under CI |
-| W1 | Scaffold disposition (87 files) | Every file implemented with focused tests, or safely de-scoped with zero runtime references; issue #1 checklist reconciled | In progress — 21/87 entries implemented with tests and 54/87 safely de-scoped; 12 remain open. Issue #1 is reconciled. PRs #14–#22 passed CI/security/three-image gates where run evidence exists; PR #23 has no workflow evidence returned |
-| W2 | Core integration | API, DB models/repositories, schemas, services, workers, scanner adapters, and UI contracts exercised end-to-end | In progress — schema/correlation/differential changes and tenant-scoped repositories are merged; repository API/worker wiring and end-to-end scan/report acceptance remain |
-| W3 | CI and code quality | Backend tests, migrations/RLS, Ruff, MyPy, Black, frontend locked install/build, C++ tests, secret/dependency/security scans all pass on one SHA | In progress — PR #14 head passed 106 backend tests (63% overall), PostgreSQL migrations/RLS, Ruff, MyPy, frontend, C++, security, and all three images. PRs #15–#22 CI/security/three-image runs all passed. PR #23 has no workflow evidence returned |
-| W4 | Container supply chain | Backend, worker, and network-engine images independently build and publish/verify on the same SHA; pinned base/runtime images | Passed on PR #14 and PRs #15–#22 (separate three-image workflows all passed). PR #23 had no workflow runs returned; verify current main before relying on this single-file deletion |
+| W0 | Baseline and inventory | Exact base SHA, complete scaffold inventory, current workflows and required checks recorded | Complete — issue #1 is closed with 87/87 entries dispositioned; current main candidate `ca736c50c82d781fb4547d4438f5fa443864d94b`; exact-SHA workflows are pending/in progress |
+| W1 | Scaffold disposition (87 files) | Every file implemented with focused tests, or safely de-scoped with zero runtime references; issue #1 checklist reconciled | Complete — 87/87 dispositioned: 25 implemented with tests or active integration, 62 safely de-scoped, 0 unassigned scaffold entries. This closes the scaffold inventory only, not production acceptance |
+| W2 | Core integration | API, DB models/repositories, schemas, services, workers, scanner adapters, and UI contracts exercised end-to-end | In progress — report generation and scan regression paths are exercised; full API/worker wiring and end-to-end scan/report acceptance still require targeted verification |
+| W3 | CI and code quality | Backend tests, migrations/RLS, Ruff, MyPy, Black, frontend locked install/build, C++ tests, secret/dependency/security scans all pass on one SHA | In progress — PR #43 CI reported 138 passed (66% overall), Ruff/MyPy, frontend and C++ passed; current main exact-SHA validation is pending. Black remains non-blocking with formatting debt; frontend has no committed lockfile; deprecation warnings and low-coverage security paths remain |
+| W4 | Container supply chain | Backend, worker, and network-engine images independently build and publish/verify on the same SHA; pinned base/runtime images | In progress — PR #41 three-image verification passed; current main candidate three-image run is pending. Floating container tags and unpinned action/runtime versions remain |
 | W5 | Production storage | Supported S3-compatible provider selected; Compose, replication, backup, retention, TLS, IAM and restore tested against it | Blocked by provider/operations decision |
 | W6 | Production security and operations | Tenant isolation across API/workers, secrets/rotation, HTTPS/cert renewal, queue recovery, monitoring/alerts, runbooks, resource/load tests | Not executed |
 | W7 | Recovery and release acceptance | Encrypted backup plus isolated restore drill, evidence integrity/replication checks, final review with exact SHA and workflow URLs | Not executed |
@@ -107,3 +109,12 @@ Each batch must include caller compatibility, negative/boundary tests, and a ref
 - PR #25 expands the CI command to run `tests/unit`, `tests/integration`, `tests/regression`, and `tests/security`; repairs the invalid existing network scan pipeline test; adds tenant isolation, invalid-port, and cloud-provider validation coverage. Its backend integration suite and image verification are currently running; lint/frontend/C++ and secret scan have passed.
 - Issue #1 inventory: 21 implemented with tests, 54 safely de-scoped, 12 open. The 12 remaining are 9 security-sensitive modules, one performance test, one regression test, and one prompt-injection security test.
 - Current release remains NO-GO.
+
+## Current reconciliation — 2026-11-04
+
+- Issue #1 scaffold inventory is complete: 25 implemented with tests/active integration, 62 safely de-scoped, 0 unassigned.
+- PRs #39, #41, #42, #43 and #44 are merged. The merged changes cover credential-key normalization, bounded AI policy traversal, telemetry exporter shutdown/test isolation, and atomic password-reset/session revocation.
+- Current main candidate: `ca736c50c82d781fb4547d4438f5fa443864d94b`. CI run `41872358651`, Security Scans run `41872358440`, and three-image run `41872358536` were pending/in progress at reconciliation time; exact-SHA success must be confirmed before any release-gate update.
+- Critical coverage gaps remain: auth endpoint 30%, tenant DB dependency 36%, evidence manager 28%, scan endpoint 49%, and scope guard 67% on the captured coverage report. RBAC 99%, AI security guard 100%, output validator 85%.
+- Compose hotfix commits `d011b2f` and `ff95247` were written directly to main despite invariant 1. This process deviation is recorded; all further changes must use PRs.
+- Production remains **NO-GO**. Provider selection, retention/Object Lock, real replication, encrypted backup/restore, staging, load, monitoring and runbook acceptance remain outstanding.
