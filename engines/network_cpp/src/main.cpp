@@ -231,15 +231,20 @@ bool RunServer() {
     const std::string token = get_env("KRAVIGIL_ENGINE_AUTH_TOKEN");
     const std::string certificate = get_env("KRAVIGIL_TLS_CERT");
     const std::string private_key = get_env("KRAVIGIL_TLS_KEY");
+    const std::string ca_certificate = get_env("KRAVIGIL_TLS_CA");
 
-    if (token.empty() || certificate.empty() || private_key.empty()) {
-        std::cerr << "KRAVIGIL_ENGINE_AUTH_TOKEN, KRAVIGIL_TLS_CERT and "
-                     "KRAVIGIL_TLS_KEY must be configured.\n";
+    if (token.empty() || certificate.empty() || private_key.empty() ||
+        ca_certificate.empty()) {
+        std::cerr << "KRAVIGIL_ENGINE_AUTH_TOKEN, KRAVIGIL_TLS_CERT, "
+                     "KRAVIGIL_TLS_KEY and KRAVIGIL_TLS_CA must be configured.\n";
         return false;
     }
 
     grpc::SslServerCredentialsOptions ssl_options;
     ssl_options.pem_key_cert_pairs.push_back({private_key, certificate});
+    ssl_options.pem_root_certs = ca_certificate;
+    ssl_options.client_certificate_request =
+        GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_AND_VERIFY;
 
     NetworkScannerServiceImpl service(token);
     ServerBuilder builder;
