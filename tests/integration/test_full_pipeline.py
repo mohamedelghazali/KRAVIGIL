@@ -1,6 +1,9 @@
 from types import SimpleNamespace
 import uuid
 
+import pytest
+
+from backend.database.models.asset import Asset
 from backend.database.models.scan import Scan
 from backend.database.models.target import Target
 import backend.api.v1.endpoints.scans as scans_endpoint
@@ -172,3 +175,99 @@ def test_network_scan_enqueue_failure_marks_persisted_scan_failed(
     assert failed_scan.error_message == "broker unavailable"
     assert failed_scan.finished_at is not None
     assert failed_scan.task_id is None
+
+@pytest.mark.parametrize(
+    ("endpoint", "payload_factory", "task_name", "scan_type"),
+    [
+        (
+            "/api/v1/scans/web",
+            lambda target, asset: {"target_id": str(target.id)},
+            "run_web_scan",
+            "WEB",
+        ),
+        (
+            "/api/v1/scans/cloud",
+            lambda target, asset: {"target_id": str(target.id), "provider": "aws"},
+            "run_cloud_scan",
+            "CLOUD",
+        ),
+        (
+            "/api/v1/scans/sast",
+            lambda target, asset: {
+                "asset_id": str(asset.id),
+                "code_path": "/workspace/project",
+            },
+            "run_sast_scan",
+            "SAST",
+        ),
+    ],
+)
+def test_non_network_scan_enqueue_failure_persists_failed_state(
+    endpoint,
+    payload_factory,
+    task_name,
+    scan_type,
+    client,
+    db_session,
+    integration_admin,
+    monkeypatch,
+):
+    user, headers = integration_admin
+    target = Target(
+        id=uuid.uuid4(),
+        tenant_id=user.tenant_id,
+        name=f"{scan_type} enqueue failure target",
+        ip_address="192.0.2.94",
+        domain="scan.example.test",
+        is_authorized=True,
+    )
+    db_session.add(target)
+    db_session.flush()
+
+    asset = Asset(
+        id=uuid.uuid4(),
+        tenant_id=user.tenant_id,
+        target_id=target.id,
+        ip_address=target.ip_address,
+    )
+    db_session.add(asset)
+    db_session.commit()
+
+    monkeypatch.setattr(
+        scans_endpoint,
+        "_resolve_scan_ip",
+        lambda target, guard: target.ip_address,
+    )
+
+    def fail_delay(*args, **kwargs):
+        raise RuntimeError("broker unavailable")
+
+    monkeypatch.setattr(
+        scans_endpoint,
+        task_name,
+        SimpleNamespace(delay=fail_delay),
+    )
+
+    response = client.post(
+        endpoint,
+        json=payload_factory(target, asset),
+        headers=headers,
+    )
+
+    assert response.status_code == 500, response.text
+    failed_scans = (
+        db_session.query(Scan)
+        .filter(
+            Scan.tenant_id == user.tenant_id,
+            Scan.target_id == target.id,
+            Scan.scan_type == scan_type,
+        )
+        .all()
+    )
+    assert len(failed_scans) == 1
+    failed_scan = failed_scans[0]
+    assert failed_scan.status == "FAILED"
+    assert failed_scan.error_message == "broker unavailable"
+    assert failed_scan.finished_at is not None
+    assert failed_scan.task_id is None
+
