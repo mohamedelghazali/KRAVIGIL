@@ -252,9 +252,13 @@ def reset_password(req: ResetPasswordRequest, db: Session = Depends(get_db)):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     reset_entry.is_used = True
-    db.commit()
-
-    db.query(UserSession).filter(UserSession.user_id == user.id).update({"is_revoked": True})
+    db.query(UserSession).filter(
+        UserSession.user_id == user.id,
+        UserSession.tenant_id == user.tenant_id,
+        UserSession.is_revoked.is_(False),
+    ).update({"is_revoked": True}, synchronize_session=False)
+    # Password change, one-time token consumption, and session revocation must
+    # commit atomically; otherwise a failed second commit can leave live sessions.
     db.commit()
 
     return {"status": "success"}
