@@ -58,4 +58,6 @@ def list_risks(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_tenant_db)
 ):
-    return db.query(RiskAssessment).order_by(RiskAssessment.calculated_risk_score.desc()).all()
+    return db.query(RiskAssessment).filter(
+        RiskAssessment.tenant_id == current_user.tenant_id
+    ).order_by(RiskAssessment.calculated_risk_score.desc()).all()
