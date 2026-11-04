@@ -35,7 +35,7 @@ class AgentClient:
         parsed = urlsplit(url)
         path = parsed.path + (f"?{parsed.query}" if parsed.query else "")
         body_hash = hashlib.sha256(body).hexdigest()
-        message = "\\n".join(
+        message = "\n".join(
             (method.upper(), path, timestamp, body_hash)
         ).encode("utf-8")
         signature = self.private_key.sign(
