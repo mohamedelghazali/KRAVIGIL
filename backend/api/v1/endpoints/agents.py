@@ -71,7 +71,6 @@ def enroll_agent(
 @router.post("/heartbeat")
 def agent_heartbeat(
     heartbeat_in: AgentHeartbeatRequest,
-    request: Request,
     agent: Agent = Depends(get_authenticated_agent),
     db: Session = Depends(get_db),
 ):
