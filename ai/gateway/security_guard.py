@@ -121,7 +121,7 @@ class SecurityGuard:
                 pending.append(("dict_iter", value))
                 raw_key = str(key).strip()
                 normalized = re.sub(
-                    r"([a-z0-9])([A-Z])", r"\\1_\\2", raw_key
+                    r"([a-z0-9])([A-Z])", r"\1_\2", raw_key
                 ).lower().replace("-", "_")
                 if normalized in self.sensitive_keys:
                     logger.warning("Data policy violation: sensitive field detected")
