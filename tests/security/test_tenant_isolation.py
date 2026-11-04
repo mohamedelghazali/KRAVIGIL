@@ -142,3 +142,124 @@ def test_refresh_token_cannot_use_another_tenants_session(client, db_session):
     assert response.status_code == 401
     db_session.refresh(mismatched_session)
     assert mismatched_session.last_used_at == original_last_used_at
+
+
+
+def test_asset_and_finding_routes_are_tenant_scoped(client, db_session):
+    tenant_a = uuid.uuid4()
+    tenant_b = uuid.uuid4()
+    user_a = User(
+        id=uuid.uuid4(),
+        tenant_id=tenant_a,
+        email=f"resource-a-{tenant_a}@example.test",
+        hashed_password="test-only-hash",
+        role="admin",
+        is_active=True,
+    )
+    user_b = User(
+        id=uuid.uuid4(),
+        tenant_id=tenant_b,
+        email=f"resource-b-{tenant_b}@example.test",
+        hashed_password="test-only-hash",
+        role="admin",
+        is_active=True,
+    )
+    target_a = Target(
+        id=uuid.uuid4(), tenant_id=tenant_a, name="Tenant A target",
+        ip_address="1.1.1.1", is_authorized=True,
+    )
+    target_b = Target(
+        id=uuid.uuid4(), tenant_id=tenant_b, name="Tenant B target",
+        ip_address="8.8.8.8", is_authorized=True,
+    )
+    asset_a = Asset(
+        id=uuid.uuid4(), tenant_id=tenant_a, target_id=target_a.id,
+        ip_address="1.1.1.1",
+    )
+    asset_b = Asset(
+        id=uuid.uuid4(), tenant_id=tenant_b, target_id=target_b.id,
+        ip_address="8.8.8.8",
+    )
+    finding_a = Finding(
+        id=uuid.uuid4(), tenant_id=tenant_a, asset_id=asset_a.id,
+        engine_id="test", engine_version="1", title="Tenant A finding",
+        vulnerability_key=f"tenant-a-{uuid.uuid4()}",
+    )
+    finding_b = Finding(
+        id=uuid.uuid4(), tenant_id=tenant_b, asset_id=asset_b.id,
+        engine_id="test", engine_version="1", title="Tenant B finding",
+        vulnerability_key=f"tenant-b-{uuid.uuid4()}",
+    )
+    db_session.add_all([
+        Organization(id=tenant_a, name=f"ResourceOrgA-{tenant_a}"),
+        Organization(id=tenant_b, name=f"ResourceOrgB-{tenant_b}"),
+        user_a, user_b, target_a, target_b, asset_a, asset_b, finding_a, finding_b,
+    ])
+    db_session.commit()
+
+    token_a = security_service.create_access_token(
+        {"sub": str(user_a.id), "tenant": str(tenant_a), "role": "admin"}
+    )
+    headers_a = {"Authorization": f"Bearer {token_a}"}
+
+    assets = client.get("/api/v1/assets/", headers=headers_a)
+    assert assets.status_code == 200
+    assert {item["id"] for item in assets.json()} == {str(asset_a.id)}
+    assert client.get(
+        f"/api/v1/assets/{asset_b.id}", headers=headers_a
+    ).status_code == 404
+
+    findings = client.get("/api/v1/findings/", headers=headers_a)
+    assert findings.status_code == 200
+    assert {item["id"] for item in findings.json()} == {str(finding_a.id)}
+    assert client.get(
+        f"/api/v1/findings/{finding_b.id}", headers=headers_a
+    ).status_code == 404
+
+
+def test_agent_cannot_submit_another_agents_task(client, db_session):
+    tenant_a = uuid.uuid4()
+    tenant_b = uuid.uuid4()
+    target = Target(
+        id=uuid.uuid4(), tenant_id=tenant_a, name="Agent task target",
+        ip_address="1.1.1.1", is_authorized=True,
+    )
+    asset = Asset(
+        id=uuid.uuid4(), tenant_id=tenant_a, target_id=target.id,
+        ip_address="1.1.1.1",
+    )
+    scan = Scan(
+        id=uuid.uuid4(), tenant_id=tenant_a, target_id=target.id,
+        asset_id=asset.id, status="RUNNING", scan_type="NETWORK",
+    )
+    owner_agent = Agent(
+        id=uuid.uuid4(), tenant_id=tenant_a, name="Owner agent",
+        certificate_fingerprint="a" * 64, public_key="owner-key",
+        status="ENROLLED",
+    )
+    other_agent = Agent(
+        id=uuid.uuid4(), tenant_id=tenant_b, name="Other agent",
+        certificate_fingerprint="b" * 64, public_key="other-key",
+        status="ENROLLED",
+    )
+    task = AgentTask(
+        id=uuid.uuid4(), tenant_id=tenant_a, agent_id=owner_agent.id,
+        scan_id=scan.id, command_type="NETWORK_SCAN",
+        parameters={"asset_id": str(asset.id)}, status="DISPATCHED",
+    )
+    db_session.add_all([
+        Organization(id=tenant_a, name=f"AgentOrgA-{tenant_a}"),
+        Organization(id=tenant_b, name=f"AgentOrgB-{tenant_b}"),
+        target, asset, scan, owner_agent, other_agent, task,
+    ])
+    db_session.commit()
+
+    response = client.post(
+        f"/api/v1/agent-tasks/{task.id}/submit",
+        headers={"X-Agent-Fingerprint": other_agent.certificate_fingerprint},
+        json={"status": "COMPLETED", "observations": []},
+    )
+
+    assert response.status_code == 404
+    db_session.refresh(task)
+    assert task.status == "DISPATCHED"
