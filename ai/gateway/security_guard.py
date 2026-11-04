@@ -101,31 +101,55 @@ class SecurityGuard:
         return re.sub(r"\s+", " ", clean_text).strip()[:output_limit]
 
     def validate_data_policy(self, finding_data: Dict[str, Any]) -> bool:
-        """Reject sensitive keys/values and bound traversal of untrusted JSON."""
+        """Reject sensitive keys/values with bounded, lazy traversal of untrusted data."""
         if not isinstance(finding_data, dict):
             return False
 
-        pending = [finding_data]
+        # Iterator frames avoid eagerly copying every child of a large dict/list
+        # into the work stack. Memory use is therefore bounded by nesting depth,
+        # while the node counter bounds the total amount of inspected input.
+        pending: list[tuple[str, Any]] = [("value", finding_data)]
         visited = 0
         while pending:
+            kind, value = pending.pop()
+
+            if kind == "dict_iter":
+                try:
+                    key, nested = next(value)
+                except StopIteration:
+                    continue
+                pending.append(("dict_iter", value))
+                raw_key = str(key).strip()
+                acronym_normalized = re.sub(
+                    r"([A-Z]+)([A-Z][a-z])", r"\1_\2", raw_key
+                )
+                normalized = re.sub(
+                    r"([a-z0-9])([A-Z])", r"\1_\2", acronym_normalized
+                ).lower().replace("-", "_")
+                if normalized in self.sensitive_keys:
+                    logger.warning("Data policy violation: sensitive field detected")
+                    return False
+                pending.append(("value", nested))
+                continue
+
+            if kind == "sequence_iter":
+                try:
+                    nested = next(value)
+                except StopIteration:
+                    continue
+                pending.append(("sequence_iter", value))
+                pending.append(("value", nested))
+                continue
+
             visited += 1
             if visited > self.MAX_POLICY_NODES:
                 logger.warning("Data policy violation: finding context exceeds node limit")
                 return False
 
-            value = pending.pop()
             if isinstance(value, dict):
-                for key, nested in value.items():
-                    raw_key = str(key).strip()
-                    normalized = re.sub(
-                        r"([a-z0-9])([A-Z])", r"\1_\2", raw_key
-                    ).lower().replace("-", "_")
-                    if normalized in self.sensitive_keys:
-                        logger.warning("Data policy violation: sensitive field detected")
-                        return False
-                    pending.append(nested)
+                pending.append(("dict_iter", iter(value.items())))
             elif isinstance(value, (list, tuple)):
-                pending.extend(value)
+                pending.append(("sequence_iter", iter(value)))
             elif isinstance(value, str):
                 if len(value) > self.MAX_POLICY_VALUE_LENGTH:
                     logger.warning("Data policy violation: field exceeds size limit")

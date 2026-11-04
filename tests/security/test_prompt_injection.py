@@ -59,6 +59,8 @@ def test_data_policy_recursively_rejects_sensitive_fields():
     assert not guard.validate_data_policy({"nested": {"apiKey": "leak"}})
     assert not guard.validate_data_policy({"clientSecret": "leak"})
     assert not guard.validate_data_policy({"awsSecretAccessKey": "leak"})
+    assert not guard.validate_data_policy({"AWSSecretAccessKey": "leak"})
+    assert not guard.validate_data_policy({"AWSAccessKeyID": "leak"})
     assert not guard.validate_data_policy({"refreshToken": "leak"})
     assert not guard.validate_data_policy(
         {"description": "Captured Authorization: Bearer " + ("x" * 40)}
@@ -69,6 +71,22 @@ def test_data_policy_recursively_rejects_sensitive_fields():
         deeply_nested = [deeply_nested]
     assert guard.validate_data_policy({"nested": deeply_nested})
     assert not guard.validate_data_policy(["not", "an", "object"])
+
+
+def test_data_policy_enforces_node_limit_without_eagerly_consuming_siblings():
+    class CountingList(list):
+        consumed = 0
+
+        def __iter__(self):
+            for item in super().__iter__():
+                self.consumed += 1
+                yield item
+
+    guard = SecurityGuard()
+    values = CountingList([{"safe": True} for _ in range(100_000)])
+
+    assert not guard.validate_data_policy({"items": values})
+    assert values.consumed <= guard.MAX_POLICY_NODES
 
 
 def test_output_validator_drops_unrecognized_fields_and_clamps_score():
