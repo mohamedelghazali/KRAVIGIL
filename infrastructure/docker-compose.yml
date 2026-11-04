@@ -69,9 +69,11 @@ services:
       KRAVIGIL_ENGINE_AUTH_TOKEN: ${KRAVIGIL_ENGINE_AUTH_TOKEN:?KRAVIGIL_ENGINE_AUTH_TOKEN must be set}
       KRAVIGIL_TLS_CERT: /run/secrets/network-engine.crt
       KRAVIGIL_TLS_KEY: /run/secrets/network-engine.key
+      KRAVIGIL_TLS_CA: /run/secrets/network-engine-ca.crt
     volumes:
       - ./certs/network-engine/server.crt:/run/secrets/network-engine.crt:ro
       - ./certs/network-engine/server.key:/run/secrets/network-engine.key:ro
+      - ./certs/network-engine/ca.crt:/run/secrets/network-engine-ca.crt:ro
     build:
       context: ..
       dockerfile: engines/network_cpp/Dockerfile
@@ -122,8 +124,12 @@ services:
       - KRAVIGIL_ENGINE_HOST=network_engine
       - KRAVIGIL_ENGINE_AUTH_TOKEN=${KRAVIGIL_ENGINE_AUTH_TOKEN:?KRAVIGIL_ENGINE_AUTH_TOKEN must be set}
       - KRAVIGIL_TLS_CA=/run/secrets/network-engine-ca.crt
+      - KRAVIGIL_TLS_CLIENT_CERT=/run/secrets/network-engine-client.crt
+      - KRAVIGIL_TLS_CLIENT_KEY=/run/secrets/network-engine-client.key
     volumes:
       - ./certs/network-engine/ca.crt:/run/secrets/network-engine-ca.crt:ro
+      - ./certs/network-engine/client.crt:/run/secrets/network-engine-client.crt:ro
+      - ./certs/network-engine/client.key:/run/secrets/network-engine-client.key:ro
     depends_on:
       db:
         condition: service_healthy
@@ -168,8 +174,12 @@ services:
       - KRAVIGIL_ENGINE_HOST=network_engine
       - KRAVIGIL_ENGINE_AUTH_TOKEN=${KRAVIGIL_ENGINE_AUTH_TOKEN:?KRAVIGIL_ENGINE_AUTH_TOKEN must be set}
       - KRAVIGIL_TLS_CA=/run/secrets/network-engine-ca.crt
+      - KRAVIGIL_TLS_CLIENT_CERT=/run/secrets/network-engine-client.crt
+      - KRAVIGIL_TLS_CLIENT_KEY=/run/secrets/network-engine-client.key
     volumes:
       - ./certs/network-engine/ca.crt:/run/secrets/network-engine-ca.crt:ro
+      - ./certs/network-engine/client.crt:/run/secrets/network-engine-client.crt:ro
+      - ./certs/network-engine/client.key:/run/secrets/network-engine-client.key:ro
       - ../workspace:/workspace:ro
       - ${GOOGLE_APPLICATION_CREDENTIALS_HOST_PATH:-/dev/null}:/run/secrets/gcp-credentials.json:ro
     depends_on:
