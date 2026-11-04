@@ -58,6 +58,9 @@ run_mc() {
     --network "$EGRESS_NETWORK" \
     -e "MC_HOST_source=$(mc_host "$MINIO_SOURCE_URL" "$MINIO_USER" "$MINIO_PASSWORD")" \
     -e "MC_HOST_target=$(mc_host "$MINIO_TARGET_URL" "$MINIO_TARGET_USER" "$MINIO_TARGET_PASSWORD")" \
+    -e "EVIDENCE_BUCKET=${MINIO_BUCKET:-kravigil-evidence}" \
+    -e "BACKUP_BUCKET=${MINIO_BACKUP_BUCKET:-kravigil-backups}" \
+    -e "BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-30}" \
     "$MC_IMAGE" "$@")"
   if ! docker network connect "$DATA_NETWORK" "$container_id"; then
     docker rm -f "$container_id" >/dev/null 2>&1 || true
