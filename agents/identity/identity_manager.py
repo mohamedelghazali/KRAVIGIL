@@ -40,6 +40,7 @@ class IdentityManager:
             )
             if private_public_key != certificate_public_key:
                 raise RuntimeError("Agent private key does not match its certificate")
+            os.chmod(self.key_path, 0o600)
             fingerprint = cert.fingerprint(hashes.SHA256()).hex()
             return fingerprint, private_public_key.decode("utf-8")
 
