@@ -40,7 +40,10 @@ class SecurityGuard:
         self.sensitive_keys = {
             "password",
             "passwd",
+            "password_hash",
+            "hashed_password",
             "token",
+            "access_token",
             "secret",
             "secret_key",
             "client_secret",
@@ -52,7 +55,16 @@ class SecurityGuard:
             "access_key",
             "accesskey",
             "refresh_token",
+            "refreshtoken",
             "id_token",
+            "idtoken",
+            "credential",
+            "credentials",
+            "cookie",
+            "set_cookie",
+            "session_id",
+            "aws_access_key_id",
+            "aws_secret_access_key",
         }
 
     def sanitize_evidence(self, raw_text: str, max_length: int = 15000) -> str:
@@ -104,7 +116,10 @@ class SecurityGuard:
             value = pending.pop()
             if isinstance(value, dict):
                 for key, nested in value.items():
-                    normalized = str(key).strip().lower().replace("-", "_")
+                    raw_key = str(key).strip()
+                    normalized = re.sub(
+                        r"([a-z0-9])([A-Z])", r"\1_\2", raw_key
+                    ).lower().replace("-", "_")
                     if normalized in self.sensitive_keys:
                         logger.warning("Data policy violation: sensitive field detected")
                         return False
