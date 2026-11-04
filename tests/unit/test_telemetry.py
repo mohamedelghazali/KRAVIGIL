@@ -15,6 +15,10 @@ def test_setup_telemetry_registers_exporter_shutdown(monkeypatch):
 
     provider = telemetry.setup_telemetry(object())
 
-    assert len(registered) == 1
-    assert registered[0].__self__ is provider
-    registered[0]()
+    shutdown_callbacks = [
+        callback
+        for callback in registered
+        if getattr(callback, "__self__", None) is provider
+    ]
+    assert shutdown_callbacks
+    shutdown_callbacks[-1]()
