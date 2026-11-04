@@ -1,6 +1,5 @@
 import hashlib
 import uuid
-from types import SimpleNamespace
 
 import backend.services.evidence.evidence_manager as evidence_module
 from backend.database.models.asset import Asset
