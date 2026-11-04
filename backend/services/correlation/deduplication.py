@@ -51,6 +51,14 @@ def merge_duplicate_findings(
             str(existing.get("severity", "info")),
             str(item.get("severity", "info")),
         )
+        # A prior analyst rejection is a durable disposition: a later scanner
+        # observation must not turn a known false positive back into a potential.
+        if (
+            str(existing.get("validation_status", "")).strip().casefold() == "rejected"
+            or str(item.get("validation_status", "")).strip().casefold() == "rejected"
+        ):
+            existing["validation_status"] = "rejected"
+
         refs = list(existing.get("evidence_refs", []))
         refs.extend(item.get("evidence_refs", []))
         existing["evidence_refs"] = list(dict.fromkeys(refs))
