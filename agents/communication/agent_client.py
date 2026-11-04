@@ -50,7 +50,7 @@ class AgentClient:
             headers["Content-Type"] = "application/json"
         return self.client.request(method, url, content=body, headers=headers)
 
-    def enroll(self, agent_name: str, version: str, ip_address: str) -> bool:
+    def enroll(self, agent_name: str, version: str, ip_address: str, admin_token: str) -> bool:
         payload = {
             "name": agent_name,
             "certificate_fingerprint": self.fingerprint,
@@ -58,8 +58,15 @@ class AgentClient:
             "version": version,
             "ip_address": ip_address
         }
+        if not admin_token or not admin_token.strip():
+            logger.error("Enrollment requires an administrator access token")
+            return False
         try:
-            response = self.client.post(f"{self.control_plane_url}/api/v1/agents/enroll", json=payload, headers=self.headers)
+            response = self.client.post(
+                f"{self.control_plane_url}/api/v1/agents/enroll",
+                json=payload,
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
             if response.status_code == 201:
                 logger.info("Agent enrolled successfully")
                 return True
