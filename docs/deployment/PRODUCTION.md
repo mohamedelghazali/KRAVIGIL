@@ -62,27 +62,31 @@ openssl x509 -req -in "$CERT_DIR/server.csr" -CA "$CERT_DIR/ca.crt" \
   -CAkey "$CERT_DIR/ca.key" -CAcreateserial -out "$CERT_DIR/server.crt" \
   -days 825 -sha256 -copy_extensions copy -extfile "$CERT_DIR/server.ext"
 
-# Client identity presented by both backend and worker.
-openssl req -newkey rsa:3072 -nodes \
-  -keyout "$CERT_DIR/client.key" -out "$CERT_DIR/client.csr" \
-  -subj "/CN=kravigil-internal-client"
-printf 'extendedKeyUsage=clientAuth\nkeyUsage=critical,digitalSignature\n' > "$CERT_DIR/client.ext"
-openssl x509 -req -in "$CERT_DIR/client.csr" -CA "$CERT_DIR/ca.crt" \
-  -CAkey "$CERT_DIR/ca.key" -CAcreateserial -out "$CERT_DIR/client.crt" \
-  -days 825 -sha256 -copy_extensions copy -extfile "$CERT_DIR/client.ext"
+# Separate client identities let operators revoke backend and worker access independently.
+for identity in backend worker; do
+  openssl req -newkey rsa:3072 -nodes \
+    -keyout "$CERT_DIR/$identity-client.key" \
+    -out "$CERT_DIR/$identity-client.csr" \
+    -subj "/CN=kravigil-$identity"
+  printf 'extendedKeyUsage=clientAuth\nkeyUsage=critical,digitalSignature\n' > "$CERT_DIR/$identity-client.ext"
+  openssl x509 -req -in "$CERT_DIR/$identity-client.csr" -CA "$CERT_DIR/ca.crt" \
+    -CAkey "$CERT_DIR/ca.key" -CAcreateserial -out "$CERT_DIR/$identity-client.crt" \
+    -days 825 -sha256 -copy_extensions copy -extfile "$CERT_DIR/$identity-client.ext"
+done
 
-# Verify the chain before the deployment script does its own checks.
-openssl verify -CAfile "$CERT_DIR/ca.crt" "$CERT_DIR/server.crt" "$CERT_DIR/client.crt"
-sudo chown 10001:10001 "$CERT_DIR/server.key"
-sudo chmod 0440 "$CERT_DIR/server.key"
-chmod 0444 "$CERT_DIR/server.crt" "$CERT_DIR/client.crt" "$CERT_DIR/ca.crt"
-sudo chown 10001:10001 "$CERT_DIR/client.key"
-sudo chmod 0440 "$CERT_DIR/client.key"
+# Verify the chains before the deployment script does its own checks.
+openssl verify -purpose sslserver -CAfile "$CERT_DIR/ca.crt" "$CERT_DIR/server.crt"
+for identity in backend worker; do
+  openssl verify -purpose sslclient -CAfile "$CERT_DIR/ca.crt" "$CERT_DIR/$identity-client.crt"
+done
+sudo chown 10001:10001 "$CERT_DIR/server.key" "$CERT_DIR/backend-client.key" "$CERT_DIR/worker-client.key"
+sudo chmod 0440 "$CERT_DIR/server.key" "$CERT_DIR/backend-client.key" "$CERT_DIR/worker-client.key"
+chmod 0444 "$CERT_DIR/server.crt" "$CERT_DIR/backend-client.crt" "$CERT_DIR/worker-client.crt" "$CERT_DIR/ca.crt"
 rm -f "$CERT_DIR"/*.csr "$CERT_DIR"/*.ext "$CERT_DIR"/*.srl
 # Securely archive the CA private key offline, then remove it from the host.
 ```
 
-The required runtime files are `ca.crt`, `server.crt`, `server.key`, `client.crt`, and `client.key`. The CA private key must not remain on the production host. All certificate/key files are excluded from Git. Backend and worker receive the client key read-only; the network engine receives the CA and server key read-only. Rotate client certificates by issuing a new certificate from the same trusted CA and restarting clients.
+The required runtime files are `ca.crt`, `server.crt`, `server.key`, `backend-client.crt`, `backend-client.key`, `worker-client.crt`, and `worker-client.key`. The CA private key must not remain on the production host. All certificate/key files are excluded from Git. Backend and worker receive distinct client keys read-only; the network engine receives the CA and server key read-only. Rotate or revoke each client identity independently by issuing a new certificate from the trusted CA and restarting the affected service.
 
 Create authorized SAST source directories under `workspace/`. The worker mounts this directory read-only and rejects paths outside `/workspace`.
 
