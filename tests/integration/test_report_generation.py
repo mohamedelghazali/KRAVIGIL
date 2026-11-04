@@ -17,7 +17,8 @@ import backend.services.reporting.report_orchestrator as report_module
 
 
 class FakeStorage:
-    objects: dict[str, bytes] = {}
+    def __init__(self):
+        self.objects: dict[str, bytes] = {}
 
     def upload_stream(self, object_key, stream, content_type, size):
         payload = stream.read()
