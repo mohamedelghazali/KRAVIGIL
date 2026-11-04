@@ -682,34 +682,46 @@ def reconcile_pending_evidence_deletions(batch_size: int = 100):
         db.rollback()
 
         manager = EvidenceManager(db)
+        limit = max(1, min(batch_size, 500))
         for tenant_id in tenant_ids:
             tenant_uuid = uuid.UUID(str(tenant_id))
             set_worker_tenant(db, tenant_uuid)
-            pending_ids = [
-                row[0]
-                for row in db.query(Evidence.id).filter(
+            skipped_ids = []
+            attempted = 0
+
+            # Claim one row at a time. Keep its FOR UPDATE lock until
+            # delete_evidence commits, preventing overlapping workers from
+            # processing the same tombstone concurrently.
+            while attempted < limit:
+                query = db.query(Evidence.id).filter(
                     Evidence.tenant_id == tenant_uuid,
                     Evidence.deletion_status == "PENDING_DELETE",
-                ).order_by(
+                )
+                if skipped_ids:
+                    query = query.filter(Evidence.id.notin_(skipped_ids))
+                row = query.order_by(
                     Evidence.deletion_requested_at.asc(),
                     Evidence.id.asc(),
-                ).with_for_update(skip_locked=True).limit(max(1, min(batch_size, 500))).all()
-            ]
-            db.rollback()
+                ).with_for_update(skip_locked=True).first()
+                if row is None:
+                    db.rollback()
+                    break
 
-            for evidence_id in pending_ids:
+                evidence_id = row[0]
+                attempted += 1
                 try:
-                    set_worker_tenant(db, tenant_uuid)
                     manager.delete_evidence(evidence_id, tenant_uuid)
                     deleted += 1
                 except Exception:
                     db.rollback()
+                    skipped_ids.append(evidence_id)
                     failed += 1
                     logger.exception(
                         "Could not reconcile pending evidence deletion %s for tenant %s",
                         evidence_id,
                         tenant_uuid,
                     )
+                    set_worker_tenant(db, tenant_uuid)
 
         return {"deleted": deleted, "failed": failed}
     except Exception:
