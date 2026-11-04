@@ -16,25 +16,25 @@ class SecurityGuard:
 
     def __init__(self):
         self.injection_patterns = [
-            r"(?i)ignore\s+(?:all\s+)?(?:the\s+)?(?:previous|prior|above|earlier)\s+(?:instructions|rules|messages)",
-            r"(?i)system\s+prompt",
-            r"(?i)you\s+are\s+now",
-            r"(?i)reveal\s+(?:your|the)\s+(?:system\s+)?prompt",
-            r"(?i)disregard\s+(?:all\s+)?(?:prior|previous|above)\s+(?:instructions|rules|messages)?",
-            r"(?i)forget\s+(?:all\s+)?previous\s+(?:instructions|rules|messages)",
-            r"(?i)override\s+(?:the\s+)?(?:system|developer)\s+instructions",
-            r"(?i)do\s+not\s+follow\s+(?:the\s+)?(?:system|developer)\s+(?:message|instructions)",
-            r"(?i)act\s+as\s+(?:an?\s+)?(?:unrestricted|unfiltered|jailbroken)",
-            r"(?i)\bDAN\s+mode\b",
+            r"(?i)ignore\\s+(?:all\\s+)?(?:the\\s+)?(?:previous|prior|above|earlier)\\s+(?:instructions|rules|messages)",
+            r"(?i)system\\s+prompt",
+            r"(?i)you\\s+are\\s+now",
+            r"(?i)reveal\\s+(?:your|the)\\s+(?:system\\s+)?prompt",
+            r"(?i)disregard\\s+(?:all\\s+)?(?:prior|previous|above)\\s+(?:instructions|rules|messages)?",
+            r"(?i)forget\\s+(?:all\\s+)?previous\\s+(?:instructions|rules|messages)",
+            r"(?i)override\\s+(?:the\\s+)?(?:system|developer)\\s+instructions",
+            r"(?i)do\\s+not\\s+follow\\s+(?:the\\s+)?(?:system|developer)\\s+(?:message|instructions)",
+            r"(?i)act\\s+as\\s+(?:an?\\s+)?(?:unrestricted|unfiltered|jailbroken)",
+            r"(?i)\\bDAN\\s+mode\\b",
         ]
         self.secret_patterns = [
-            r"(?i)authorization\s*:\s*bearer\s+[a-z0-9\-._~+/]+=*",
-            r"(?i)bearer\s+[a-z0-9\-._~+/]+=*",
+            r"(?i)authorization\\s*:\\s*bearer\\s+[a-z0-9\\-._~+/]+=*",
+            r"(?i)bearer\\s+[a-z0-9\\-._~+/]+=*",
             r"AKIA[0-9A-Z]{16}",
             r"AIza[0-9A-Za-z_-]{35}",
             r"gh[pousr]_[A-Za-z0-9_]{20,255}",
             r"sk-[A-Za-z0-9_-]{20,}",
-            r"eyJ[A-Za-z0-9_-]+=*\.[A-Za-z0-9_-]+=*\.?[A-Za-z0-9_./+-]*",
+            r"eyJ[A-Za-z0-9_-]+=*\\.[A-Za-z0-9_-]+=*\\.?[A-Za-z0-9_./+-]*",
             r"-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----.*?-----END (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----",
         ]
         self.sensitive_keys = {
@@ -68,13 +68,13 @@ class SecurityGuard:
         # Bound regex work before decoding or processing attacker-controlled text.
         clean_text = html.unescape(raw_text[: self.MAX_INPUT_LENGTH])
         clean_text = re.sub(
-            r"<script\b[^>]*>.*?</script\s*>",
+            r"<script\\b[^>]*>.*?</script\\s*>",
             " ",
             clean_text,
             flags=re.DOTALL | re.IGNORECASE,
         )
         clean_text = re.sub(
-            r"<style\b[^>]*>.*?</style\s*>",
+            r"<style\\b[^>]*>.*?</style\\s*>",
             " ",
             clean_text,
             flags=re.DOTALL | re.IGNORECASE,
@@ -86,31 +86,52 @@ class SecurityGuard:
             )
         for pattern in self.secret_patterns:
             clean_text = re.sub(pattern, "[REDACTED_SECRET]", clean_text, flags=re.DOTALL)
-        return re.sub(r"\s+", " ", clean_text).strip()[:output_limit]
+        return re.sub(r"\\s+", " ", clean_text).strip()[:output_limit]
 
     def validate_data_policy(self, finding_data: Dict[str, Any]) -> bool:
-        """Reject sensitive keys/values and bound traversal of untrusted JSON."""
+        """Reject sensitive keys/values with bounded, lazy traversal of untrusted data."""
         if not isinstance(finding_data, dict):
             return False
 
-        pending = [finding_data]
+        # Iterator frames avoid eagerly copying every child of a large dict/list
+        # into the work stack. Memory use is therefore bounded by nesting depth,
+        # while the node counter bounds the total amount of inspected input.
+        pending = [("value", finding_data)]
         visited = 0
         while pending:
+            kind, value = pending.pop()
+
+            if kind == "dict_iter":
+                try:
+                    key, nested = next(value)
+                except StopIteration:
+                    continue
+                pending.append(("dict_iter", value))
+                normalized = str(key).strip().lower().replace("-", "_")
+                if normalized in self.sensitive_keys:
+                    logger.warning("Data policy violation: sensitive field detected")
+                    return False
+                pending.append(("value", nested))
+                continue
+
+            if kind == "sequence_iter":
+                try:
+                    nested = next(value)
+                except StopIteration:
+                    continue
+                pending.append(("sequence_iter", value))
+                pending.append(("value", nested))
+                continue
+
             visited += 1
             if visited > self.MAX_POLICY_NODES:
                 logger.warning("Data policy violation: finding context exceeds node limit")
                 return False
 
-            value = pending.pop()
             if isinstance(value, dict):
-                for key, nested in value.items():
-                    normalized = str(key).strip().lower().replace("-", "_")
-                    if normalized in self.sensitive_keys:
-                        logger.warning("Data policy violation: sensitive field detected")
-                        return False
-                    pending.append(nested)
+                pending.append(("dict_iter", iter(value.items())))
             elif isinstance(value, (list, tuple)):
-                pending.extend(value)
+                pending.append(("sequence_iter", iter(value)))
             elif isinstance(value, str):
                 if len(value) > self.MAX_POLICY_VALUE_LENGTH:
                     logger.warning("Data policy violation: field exceeds size limit")
