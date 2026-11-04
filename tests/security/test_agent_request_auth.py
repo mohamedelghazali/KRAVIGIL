@@ -205,3 +205,41 @@ def test_authenticated_agent_cannot_submit_another_agents_task(client, db_sessio
     assert response.status_code == 404
     db_session.refresh(task)
     assert task.status == "DISPATCHED"
+
+
+def test_agent_signature_rejects_modified_request_body(client, db_session):
+    tenant_id = uuid.uuid4()
+    private_key, public_key, fingerprint = _new_agent_identity()
+    agent = Agent(
+        id=uuid.uuid4(),
+        tenant_id=tenant_id,
+        name="Body integrity agent",
+        certificate_fingerprint=fingerprint,
+        public_key=public_key,
+        status="ENROLLED",
+        ip_address="192.0.2.50",
+    )
+    db_session.add_all(
+        [Organization(id=tenant_id, name=f"BodyIntegrityOrg-{tenant_id}"), agent]
+    )
+    db_session.commit()
+
+    signed_payload = {"status": "ONLINE", "ip_address": "192.0.2.51"}
+    signed_body = json.dumps(signed_payload, separators=(",", ":")).encode("utf-8")
+    headers = _signed_headers(
+        private_key, fingerprint, "POST", "/api/v1/agents/heartbeat", signed_body
+    )
+    headers["Content-Type"] = "application/json"
+    tampered_body = json.dumps(
+        {"status": "DEGRADED", "ip_address": "192.0.2.99"},
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+    response = client.post(
+        "/api/v1/agents/heartbeat", content=tampered_body, headers=headers
+    )
+
+    assert response.status_code == 401
+    db_session.refresh(agent)
+    assert agent.status == "ENROLLED"
+    assert agent.ip_address == "192.0.2.50"
