@@ -93,7 +93,7 @@ At minimum:
 5. Start the application only in an isolated recovery/staging environment and run its health, login/MFA, scan, report, and evidence workflows.
 6. Record the backup key, backup timestamp, restore start/end times, checksum result, migration version, validation outcomes, and measured RTO.
 
-A PostgreSQL dump does not include MinIO evidence objects. Database recovery and object-store recovery must be validated together.
+A PostgreSQL dump does not include MinIO evidence objects. Database recovery and object-store recovery must be validated together. Because the backup is created with `--no-owner --no-acl`, PostgreSQL roles and grants are not restored from the dump. Before starting KRAVIGIL, recreate the restricted `kravigil_app` role and its database/schema/table/sequence grants using the role-provisioning SQL in `scripts/deploy_prod.sh`; keep it `NOSUPERUSER NOBYPASSRLS` and verify RLS policies with that role.
 
 ## Operational acceptance checklist
 
