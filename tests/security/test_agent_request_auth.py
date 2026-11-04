@@ -97,7 +97,7 @@ def test_signed_agent_heartbeat_updates_only_authenticated_agent(client, db_sess
     assert agent.last_heartbeat is not None
 
 
-def test_agent_signature_cannot_be_replayed_after_timestamp_window(client, db_session):
+def test_agent_signature_rejects_expired_timestamp(client, db_session):
     tenant_id = uuid.uuid4()
     private_key, public_key, fingerprint = _new_agent_identity()
     db_session.add(Organization(id=tenant_id, name=f"ExpiredAgent-{tenant_id}"))
