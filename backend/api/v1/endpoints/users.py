@@ -14,7 +14,7 @@ from backend.core.security import get_current_user, require_role, security_servi
 from backend.database.models.session import UserSession
 from backend.database.models.user import User
 from backend.database.tenant import get_tenant_db
-from backend.schemas.user import UserCreate, UserRead as UserResponse, UserRoleUpdate
+from backend.schemas.user import UserCreate, UserRead as UserResponse, UserRoleUpdate as UserUpdateRole
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
