@@ -15,6 +15,7 @@ from backend.database.models.user import Organization
 class FakeStorage:
     def __init__(self):
         self.objects = {}
+        self.fail_delete = False
 
     def upload_stream(self, object_key, stream, content_type):
         payload = stream.read()
@@ -22,6 +23,8 @@ class FakeStorage:
         return object_key, hashlib.sha256(payload).hexdigest(), len(payload)
 
     def delete_object(self, object_key):
+        if self.fail_delete:
+            raise RuntimeError("object storage unavailable")
         self.objects.pop(object_key, None)
 
 
@@ -62,6 +65,23 @@ def _create_scan(db_session):
     )
     db_session.commit()
     return tenant_id, scan_id
+
+
+def _create_evidence(db_session, tenant_id, scan_id, payload=b"evidence to delete"):
+    object_key = f"{tenant_id}/{scan_id}/{uuid.uuid4()}.bin"
+    record = Evidence(
+        tenant_id=tenant_id,
+        scan_id=scan_id,
+        object_key=object_key,
+        storage_backend="minio",
+        content_type="application/octet-stream",
+        size_bytes=len(payload),
+        sha256=hashlib.sha256(payload).hexdigest(),
+        metadata_json={},
+    )
+    db_session.add(record)
+    db_session.commit()
+    return record, object_key, payload
 
 
 def test_refresh_failure_after_commit_preserves_evidence_object(
@@ -133,3 +153,88 @@ def test_database_commit_failure_cleans_up_uploaded_evidence(
         .count()
         == 0
     )
+
+
+def test_storage_delete_failure_keeps_retryable_hidden_tombstone(
+    db_session, monkeypatch
+):
+    tenant_id, scan_id = _create_scan(db_session)
+    record, object_key, payload = _create_evidence(db_session, tenant_id, scan_id)
+    storage = FakeStorage()
+    storage.objects[object_key] = payload
+    storage.fail_delete = True
+    monkeypatch.setattr(evidence_module, "MinIOClient", lambda: storage)
+    manager = evidence_module.EvidenceManager(db_session)
+
+    with pytest.raises(RuntimeError, match="object storage unavailable"):
+        manager.delete_evidence(record.id, tenant_id)
+
+    persisted = db_session.query(Evidence).filter(Evidence.id == record.id).one()
+    assert persisted.deletion_status == "PENDING_DELETE"
+    assert persisted.deletion_requested_at is not None
+    assert object_key in storage.objects
+    with pytest.raises(ValueError, match="Evidence not found"):
+        manager.get_download_url(record.id, tenant_id)
+
+    storage.fail_delete = False
+    manager.delete_evidence(record.id, tenant_id)
+    assert db_session.query(Evidence).filter(Evidence.id == record.id).count() == 0
+    assert object_key not in storage.objects
+
+
+def test_final_database_commit_failure_can_be_retried_after_object_removal(
+    db_session, monkeypatch
+):
+    tenant_id, scan_id = _create_scan(db_session)
+    record, object_key, payload = _create_evidence(db_session, tenant_id, scan_id)
+    storage = FakeStorage()
+    storage.objects[object_key] = payload
+    monkeypatch.setattr(evidence_module, "MinIOClient", lambda: storage)
+    manager = evidence_module.EvidenceManager(db_session)
+    original_commit = db_session.commit
+    commits = 0
+
+    def fail_second_commit():
+        nonlocal commits
+        commits += 1
+        if commits == 2:
+            raise RuntimeError("final database commit failed")
+        return original_commit()
+
+    monkeypatch.setattr(db_session, "commit", fail_second_commit)
+    with pytest.raises(RuntimeError, match="final database commit failed"):
+        manager.delete_evidence(record.id, tenant_id)
+
+    monkeypatch.setattr(db_session, "commit", original_commit)
+    db_session.rollback()
+    persisted = db_session.query(Evidence).filter(Evidence.id == record.id).one()
+    assert persisted.deletion_status == "PENDING_DELETE"
+    assert object_key not in storage.objects
+
+    manager.delete_evidence(record.id, tenant_id)
+    assert db_session.query(Evidence).filter(Evidence.id == record.id).count() == 0
+
+
+def test_initial_tombstone_commit_failure_does_not_remove_object(
+    db_session, monkeypatch
+):
+    tenant_id, scan_id = _create_scan(db_session)
+    record, object_key, payload = _create_evidence(db_session, tenant_id, scan_id)
+    storage = FakeStorage()
+    storage.objects[object_key] = payload
+    monkeypatch.setattr(evidence_module, "MinIOClient", lambda: storage)
+    manager = evidence_module.EvidenceManager(db_session)
+    original_commit = db_session.commit
+
+    def fail_commit():
+        raise RuntimeError("tombstone commit failed")
+
+    monkeypatch.setattr(db_session, "commit", fail_commit)
+    with pytest.raises(RuntimeError, match="tombstone commit failed"):
+        manager.delete_evidence(record.id, tenant_id)
+
+    monkeypatch.setattr(db_session, "commit", original_commit)
+    db_session.rollback()
+    persisted = db_session.query(Evidence).filter(Evidence.id == record.id).one()
+    assert persisted.deletion_status == "ACTIVE"
+    assert object_key in storage.objects
