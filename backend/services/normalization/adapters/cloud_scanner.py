@@ -3,7 +3,7 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 
 from backend.services.normalization.adapters.base import BaseEngineAdapter
 
@@ -16,7 +16,10 @@ class CloudScannerAdapter(BaseEngineAdapter):
     def __init__(self):
         super().__init__(binary_path="prowler", timeout_seconds=3600)
 
-    def scan(self, provider: str = "aws") -> List[Dict[str, Any]]:
+    def scan(
+        self, provider: str = "aws",
+        should_cancel: Optional[Callable[[], bool]] = None,
+    ) -> List[Dict[str, Any]]:
         provider = provider.lower()
         if provider not in {"aws", "azure", "gcp"}:
             raise ValueError(f"Unsupported cloud provider: {provider}")
@@ -30,7 +33,7 @@ class CloudScannerAdapter(BaseEngineAdapter):
                 if credentials_file:
                     args.extend(["--credentials-file", credentials_file])
 
-            self.execute(args)
+            self.execute(args, should_cancel=should_cancel)
             report_files = sorted(Path(output_dir).glob("*.json"))
             if not report_files:
                 raise RuntimeError("Prowler completed without producing a JSON-OCSF report")
