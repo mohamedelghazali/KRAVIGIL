@@ -48,7 +48,7 @@ def create_user(
     db: Session = Depends(get_tenant_db)
 ):
     try:
-        existing = db.query(User).filter(User.email == user_in.email).first()
+        existing = db.query(User).filter(User.email == user_in.email, User.tenant_id == current_user.tenant_id).first()
         if existing:
             raise HTTPException(status_code=409, detail="User with this email already exists")
 
@@ -86,7 +86,7 @@ def list_users(
     current_user: User = Depends(require_role(["admin"])),
     db: Session = Depends(get_tenant_db)
 ):
-    return db.query(User).all()
+    return db.query(User).filter(User.tenant_id == current_user.tenant_id).all()
 
 @router.put("/{user_id}/role", response_model=UserResponse)
 def update_user_role(
@@ -95,7 +95,7 @@ def update_user_role(
     current_user: User = Depends(require_role(["admin"])),
     db: Session = Depends(get_tenant_db)
 ):
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.query(User).filter(User.id == user_id, User.tenant_id == current_user.tenant_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -178,6 +178,7 @@ def list_sessions(
 ):
     return db.query(UserSession).filter(
         UserSession.user_id == current_user.id,
+        UserSession.tenant_id == current_user.tenant_id,
         UserSession.is_revoked == False,
         UserSession.expires_at > datetime.utcnow()
     ).all()
@@ -190,7 +191,8 @@ def revoke_session(
 ):
     session = db.query(UserSession).filter(
         UserSession.id == session_id,
-        UserSession.user_id == current_user.id
+        UserSession.user_id == current_user.id,
+        UserSession.tenant_id == current_user.tenant_id
     ).first()
     
     if not session:
