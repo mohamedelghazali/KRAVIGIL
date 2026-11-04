@@ -220,7 +220,7 @@ def cancel_scan(
     current_user: User = Depends(require_permission(Permission.SCAN_CANCEL)),
     db: Session = Depends(get_tenant_db)
 ):
-    scan = db.query(Scan).filter(Scan.id == scan_id).first()
+    scan = db.query(Scan).filter(Scan.id == scan_id, Scan.tenant_id == current_user.tenant_id).first()
     if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
 
