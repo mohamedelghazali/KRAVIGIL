@@ -1,5 +1,6 @@
 import hashlib
 import uuid
+from datetime import datetime
 from io import BytesIO
 
 import pytest
@@ -279,7 +280,7 @@ def test_periodic_reconciler_removes_pending_evidence_deletion(
     tenant_id, scan_id = _create_scan(db_session)
     record, object_key, payload = _create_evidence(db_session, tenant_id, scan_id)
     record.deletion_status = "PENDING_DELETE"
-    record.deletion_requested_at = __import__("datetime").datetime.utcnow()
+    record.deletion_requested_at = datetime.utcnow()
     db_session.commit()
 
     storage = FakeStorage()
