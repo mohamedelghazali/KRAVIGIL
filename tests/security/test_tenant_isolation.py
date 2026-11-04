@@ -1,6 +1,9 @@
+import hashlib
 import uuid
+from datetime import datetime, timedelta
 
 from backend.core.security import security_service
+from backend.database.models.session import UserSession
 from backend.core import audit_service
 from backend.database.models.user import Organization, User
 from tests.conftest import TestingSessionLocal
@@ -84,3 +87,59 @@ def test_tenant_isolation(client, db_session, monkeypatch):
         f"/api/v1/targets/{target_b_id}", headers=headers_a
     )
     assert cross_tenant_delete.status_code == 404
+
+
+
+def test_refresh_token_cannot_use_another_tenants_session(client, db_session):
+    tenant_a = uuid.uuid4()
+    tenant_b = uuid.uuid4()
+    user_a = User(
+        id=uuid.uuid4(),
+        tenant_id=tenant_a,
+        email=f"refresh-a-{tenant_a}@example.test",
+        hashed_password="test-only-hash",
+        role="admin",
+        is_active=True,
+    )
+    user_b = User(
+        id=uuid.uuid4(),
+        tenant_id=tenant_b,
+        email=f"refresh-b-{tenant_b}@example.test",
+        hashed_password="test-only-hash",
+        role="admin",
+        is_active=True,
+    )
+    db_session.add_all(
+        [
+            Organization(id=tenant_a, name=f"RefreshOrgA-{tenant_a}"),
+            Organization(id=tenant_b, name=f"RefreshOrgB-{tenant_b}"),
+            user_a,
+            user_b,
+        ]
+    )
+    db_session.commit()
+
+    refresh_token = security_service.create_refresh_token(
+        {"sub": str(user_a.id), "tenant": str(tenant_a)}
+    )
+    mismatched_session = UserSession(
+        id=uuid.uuid4(),
+        tenant_id=tenant_b,
+        user_id=user_b.id,
+        refresh_token_hash=hashlib.sha256(refresh_token.encode()).hexdigest(),
+        expires_at=datetime.utcnow() + timedelta(days=1),
+        is_revoked=False,
+    )
+    db_session.add(mismatched_session)
+    db_session.commit()
+
+    response = client.post(
+        "/api/v1/auth/refresh",
+        json={"refresh_token": refresh_token},
+    )
+
+    assert response.status_code == 401
+    db_session.refresh(mismatched_session)
+    assert mismatched_session.last_used_at is None or (
+        mismatched_session.last_used_at < mismatched_session.created_at
+    )
