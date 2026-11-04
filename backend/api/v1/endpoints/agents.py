@@ -92,4 +92,4 @@ def list_agents(
     current_user: User = Depends(require_role(["admin", "analyst"])),
     db: Session = Depends(get_tenant_db)
 ):
-    return db.query(Agent).all()
+    return db.query(Agent).filter(Agent.tenant_id == current_user.tenant_id).all()
