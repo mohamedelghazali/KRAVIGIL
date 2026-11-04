@@ -73,6 +73,11 @@ for file in "$CERT_DIR/server.crt" "$CERT_DIR/server.key" "$CERT_DIR/ca.crt" "$C
   fi
 done
 
+if ! command -v openssl >/dev/null 2>&1; then
+  echo "ERROR: openssl is required to validate the network-engine mTLS certificate chain." >&2
+  exit 1
+fi
+
 if command -v openssl >/dev/null 2>&1; then
   openssl x509 -in "$CERT_DIR/server.crt" -noout >/dev/null
   openssl pkey -in "$CERT_DIR/server.key" -noout >/dev/null
@@ -109,7 +114,7 @@ docker compose "${BASE_COMPOSE[@]}" config --quiet
 echo "[1/8] Building production images..."
 docker compose "${BASE_COMPOSE[@]}" build
 
-echo "[2/8] Starting data services and the TLS-protected network engine..."
+echo "[2/8] Starting data services and the mTLS-protected network engine..."
 docker compose "${BASE_COMPOSE[@]}" up -d --wait db redis minio target-minio network_engine
 
 echo "[3/8] Configuring evidence and backup replication..."
