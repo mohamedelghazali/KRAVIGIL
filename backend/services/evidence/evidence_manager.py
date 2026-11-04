@@ -35,6 +35,7 @@ class EvidenceManager:
         evidence_id = uuid.uuid4()
         object_key = f"{tenant_uuid}/{scan_uuid}/{evidence_id}.{ext}"
         uploaded_key = None
+        database_committed = False
         try:
             uploaded_key, sha, size = self.storage.upload_stream(object_key, stream, content_type)
             record = Evidence(id=evidence_id, tenant_id=tenant_uuid, scan_id=scan_uuid,
@@ -43,12 +44,16 @@ class EvidenceManager:
                 metadata_json=metadata or {}, created_at=datetime.utcnow())
             self.db.add(record)
             self.db.commit()
+            database_committed = True
             self.db.refresh(record)
             logger.info("Stored evidence %s for tenant %s", evidence_id, tenant_uuid)
             return record
         except Exception:
             self.db.rollback()
-            if uploaded_key:
+            # Once commit succeeds, the row and object form a consistent pair.
+            # A later refresh failure must not delete the object referenced by
+            # the committed row; leave it intact for a subsequent read/retry.
+            if uploaded_key and not database_committed:
                 try:
                     self.storage.delete_object(uploaded_key)
                 except Exception:
