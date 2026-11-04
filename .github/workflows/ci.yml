@@ -146,6 +146,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+    - name: Validate production Compose and deployment script
+      run: |
+        cp .env.example .env
+        trap 'rm -f .env' EXIT
+        bash -n scripts/deploy_prod.sh
+        docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.prod.yml -f infrastructure/docker-compose.backup.yml config --quiet
     - name: Build backend image
       run: docker build -f backend/Dockerfile -t kravigil-backend:ci .
     - name: Build network engine image
