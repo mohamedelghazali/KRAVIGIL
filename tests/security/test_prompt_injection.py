@@ -57,6 +57,9 @@ def test_data_policy_recursively_rejects_sensitive_fields():
     assert guard.validate_data_policy({"title": "SQL injection", "severity": "high"})
     assert not guard.validate_data_policy({"metadata": [{"client-secret": "leak"}]})
     assert not guard.validate_data_policy({"nested": {"apiKey": "leak"}})
+    assert not guard.validate_data_policy({"clientSecret": "leak"})
+    assert not guard.validate_data_policy({"awsSecretAccessKey": "leak"})
+    assert not guard.validate_data_policy({"refreshToken": "leak"})
     assert not guard.validate_data_policy(
         {"description": "Captured Authorization: Bearer " + ("x" * 40)}
     )
