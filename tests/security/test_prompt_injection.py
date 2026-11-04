@@ -32,10 +32,10 @@ def test_html_encoded_script_and_prompt_injection_are_removed():
     "secret",
     [
         "Authorization: Bearer abc.def.ghi",
-        "AKIA1234567890ABCDEF",
-        "AIza123456789012345678901234567890123456",
-        "ghp_123456789012345678901234567890123456",
-        "sk-123456789012345678901234567890",
+        "AKIA" + ("A" * 16),
+        "AIza" + ("B" * 35),
+        "ghp_" + ("x" * 40),
+        "sk-" + ("y" * 30),
         "-----BEGIN PRIVATE KEY-----secret-material-----END PRIVATE KEY-----",
     ],
 )
