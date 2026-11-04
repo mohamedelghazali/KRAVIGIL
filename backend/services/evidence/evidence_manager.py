@@ -10,6 +10,7 @@ from backend.services.evidence.minio_client import MinIOClient
 
 logger = logging.getLogger(__name__)
 
+
 class EvidenceManager:
     def __init__(self, db: Session):
         self.db = db
@@ -50,9 +51,8 @@ class EvidenceManager:
             return record
         except Exception:
             self.db.rollback()
-            # Once commit succeeds, the row and object form a consistent pair.
-            # A later refresh failure must not delete the object referenced by
-            # the committed row; leave it intact for a subsequent read/retry.
+            # Once commit succeeds, a later refresh failure must not delete the
+            # object referenced by the committed row.
             if uploaded_key and not database_committed:
                 try:
                     self.storage.delete_object(uploaded_key)
@@ -60,10 +60,14 @@ class EvidenceManager:
                     logger.exception("Failed to clean up uploaded evidence %s", uploaded_key)
             raise
 
-    def _get_record(self, evidence_id: uuid.UUID, tenant_id: uuid.UUID) -> Evidence:
-        record = self.db.query(Evidence).filter(
+    def _get_record(self, evidence_id: uuid.UUID, tenant_id: uuid.UUID,
+                    include_pending: bool = False) -> Evidence:
+        query = self.db.query(Evidence).filter(
             Evidence.id == uuid.UUID(str(evidence_id)),
-            Evidence.tenant_id == uuid.UUID(str(tenant_id))).first()
+            Evidence.tenant_id == uuid.UUID(str(tenant_id)))
+        if not include_pending:
+            query = query.filter(Evidence.deletion_status == "ACTIVE")
+        record = query.first()
         if record is None:
             raise ValueError("Evidence not found")
         return record
@@ -78,8 +82,26 @@ class EvidenceManager:
         return self.storage.generate_presigned_url(record.object_key, expires_seconds)
 
     def delete_evidence(self, evidence_id: uuid.UUID, tenant_id: uuid.UUID) -> None:
-        record = self._get_record(evidence_id, tenant_id)
+        # Persist a tombstone before touching object storage. A failed storage
+        # delete or a crash leaves a retryable PENDING_DELETE row, never an
+        # apparently active row whose object may already have disappeared.
+        record = self._get_record(evidence_id, tenant_id, include_pending=True)
+        if record.deletion_status != "PENDING_DELETE":
+            record.deletion_status = "PENDING_DELETE"
+            record.deletion_requested_at = datetime.utcnow()
+            try:
+                self.db.commit()
+            except Exception:
+                self.db.rollback()
+                raise
+
+        # MinIO/S3 object removal is idempotent: retries also cover a crash
+        # after object removal but before the final database commit.
         self.storage.delete_object(record.object_key)
-        self.db.delete(record)
-        self.db.commit()
-        logger.info("Deleted evidence %s", evidence_id)
+        try:
+            self.db.delete(record)
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+        logger.info("Deleted evidence %s for tenant %s", evidence_id, tenant_id)

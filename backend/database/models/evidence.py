@@ -5,6 +5,7 @@ from sqlalchemy import Uuid
 from sqlalchemy.dialects.postgresql import JSONB
 from backend.database.models.base import Base
 
+
 class Evidence(Base):
     __tablename__ = "evidence"
     id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -20,8 +21,11 @@ class Evidence(Base):
     encryption = Column(String(50), default="SSE-S3", nullable=False)
     metadata_json = Column(JSON().with_variant(JSONB, "postgresql"), default=dict, nullable=False)
     retention_policy = Column(String(50), default="standard", nullable=False)
+    deletion_status = Column(String(20), default="ACTIVE", server_default="ACTIVE", nullable=False)
+    deletion_requested_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     __table_args__ = (
         Index("ix_evidence_tenant_scan", "tenant_id", "scan_id"),
         Index("ix_evidence_tenant_sha", "tenant_id", "sha256"),
+        Index("ix_evidence_deletion_status", "deletion_status"),
     )

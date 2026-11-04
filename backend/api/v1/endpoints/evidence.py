@@ -1,7 +1,7 @@
 import logging
 import uuid
 from datetime import datetime
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, Response
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 from backend.core.security import get_current_user, require_role
@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 MAX_EVIDENCE_SIZE = 50 * 1024 * 1024
 
+
 class EvidenceResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
@@ -26,11 +27,13 @@ class EvidenceResponse(BaseModel):
     sha256: str
     created_at: datetime
 
+
 def _tenant_id(user: User):
     value = getattr(user, "organization_id", None) or getattr(user, "tenant_id", None)
     if value is None:
         raise HTTPException(status_code=403, detail="Tenant context is missing")
     return uuid.UUID(str(value))
+
 
 @router.post("/upload", response_model=EvidenceResponse, status_code=201)
 async def upload_evidence(scan_id: uuid.UUID = Form(...),
@@ -71,6 +74,7 @@ async def upload_evidence(scan_id: uuid.UUID = Form(...),
     finally:
         await file.close()
 
+
 @router.get("/{evidence_id}/download-url")
 def get_download_url(evidence_id: uuid.UUID,
                      current_user: User = Depends(get_current_user),
@@ -81,12 +85,33 @@ def get_download_url(evidence_id: uuid.UUID,
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Evidence not found") from exc
 
+
 @router.get("/{evidence_id}", response_model=EvidenceResponse)
 def get_evidence_metadata(evidence_id: uuid.UUID,
                           current_user: User = Depends(get_current_user),
                           db: Session = Depends(get_tenant_db)):
-    record = db.query(Evidence).filter(Evidence.id == evidence_id,
-        Evidence.tenant_id == _tenant_id(current_user)).first()
+    record = db.query(Evidence).filter(
+        Evidence.id == evidence_id,
+        Evidence.tenant_id == _tenant_id(current_user),
+        Evidence.deletion_status == "ACTIVE",
+    ).first()
     if record is None:
         raise HTTPException(status_code=404, detail="Evidence not found")
     return record
+
+
+@router.delete("/{evidence_id}", status_code=204)
+def delete_evidence(evidence_id: uuid.UUID,
+                    current_user: User = Depends(require_role(["admin"])),
+                    db: Session = Depends(get_tenant_db)):
+    try:
+        EvidenceManager(db).delete_evidence(evidence_id, _tenant_id(current_user))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Evidence not found") from exc
+    except Exception as exc:
+        logger.exception("Evidence deletion remains pending for %s", evidence_id)
+        raise HTTPException(
+            status_code=503,
+            detail="Evidence deletion is pending; retry the request to complete it",
+        ) from exc
+    return Response(status_code=204)
