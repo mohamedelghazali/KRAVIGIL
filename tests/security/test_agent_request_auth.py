@@ -3,7 +3,6 @@ import hashlib
 import json
 import time
 import uuid
-from datetime import datetime, timedelta
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
@@ -11,6 +10,8 @@ from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from backend.database.models.agent import Agent
 from backend.database.models.agent_task import AgentTask
 from backend.database.models.scan import Scan
+from backend.database.models.asset import Asset
+from backend.database.models.target import Target
 from backend.database.models.user import Organization
 
 
@@ -150,11 +151,24 @@ def test_authenticated_agent_cannot_submit_another_agents_task(client, db_sessio
         public_key=public_key,
         status="ENROLLED",
     )
+    target = Target(
+        id=uuid.uuid4(),
+        tenant_id=tenant_a,
+        name="Agent task target",
+        ip_address="192.0.2.40",
+        is_authorized=True,
+    )
+    asset = Asset(
+        id=uuid.uuid4(),
+        tenant_id=tenant_a,
+        target_id=target.id,
+        ip_address="192.0.2.40",
+    )
     scan = Scan(
         id=uuid.uuid4(),
         tenant_id=tenant_a,
-        target_id=uuid.uuid4(),
-        asset_id=uuid.uuid4(),
+        target_id=target.id,
+        asset_id=asset.id,
         status="RUNNING",
         scan_type="NETWORK",
     )
@@ -173,6 +187,8 @@ def test_authenticated_agent_cannot_submit_another_agents_task(client, db_sessio
             Organization(id=tenant_b, name=f"OtherAgentOrg-{tenant_b}"),
             owner_agent,
             other_agent,
+            target,
+            asset,
             scan,
             task,
         ]
