@@ -4,7 +4,7 @@ import time
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
@@ -54,6 +54,8 @@ async def get_authenticated_agent(
 
     try:
         public_key = serialization.load_pem_public_key(agent.public_key.encode("utf-8"))
+        if not isinstance(public_key, rsa.RSAPublicKey) or public_key.key_size < 2048:
+            raise HTTPException(status_code=401, detail="Unsupported agent public key")
         decoded_signature = base64.urlsafe_b64decode(
             signature + "=" * (-len(signature) % 4)
         )
