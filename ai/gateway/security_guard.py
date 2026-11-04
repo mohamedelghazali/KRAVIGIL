@@ -96,7 +96,7 @@ class SecurityGuard:
         # Iterator frames avoid eagerly copying every child of a large dict/list
         # into the work stack. Memory use is therefore bounded by nesting depth,
         # while the node counter bounds the total amount of inspected input.
-        pending = [("value", finding_data)]
+        pending: list[tuple[str, Any]] = [("value", finding_data)]
         visited = 0
         while pending:
             kind, value = pending.pop()
