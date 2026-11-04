@@ -66,7 +66,7 @@ if [[ ! -s "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" || ! -s "/etc/letsencry
 fi
 
 CERT_DIR="infrastructure/certs/network-engine"
-for file in "$CERT_DIR/server.crt" "$CERT_DIR/server.key" "$CERT_DIR/ca.crt" "$CERT_DIR/client.crt" "$CERT_DIR/client.key"; do
+for file in "$CERT_DIR/server.crt" "$CERT_DIR/server.key" "$CERT_DIR/ca.crt" "$CERT_DIR/backend-client.crt" "$CERT_DIR/backend-client.key" "$CERT_DIR/worker-client.crt" "$CERT_DIR/worker-client.key"; do
   if [[ ! -s "$file" ]]; then
     echo "ERROR: required gRPC TLS file is missing or empty: $file" >&2
     exit 1
@@ -82,16 +82,22 @@ if command -v openssl >/dev/null 2>&1; then
   openssl x509 -in "$CERT_DIR/server.crt" -noout >/dev/null
   openssl pkey -in "$CERT_DIR/server.key" -noout >/dev/null
   openssl x509 -in "$CERT_DIR/ca.crt" -noout >/dev/null
-  openssl x509 -in "$CERT_DIR/client.crt" -noout >/dev/null
-  openssl pkey -in "$CERT_DIR/client.key" -noout >/dev/null
   openssl verify -purpose sslserver -CAfile "$CERT_DIR/ca.crt" "$CERT_DIR/server.crt" >/dev/null
-  openssl verify -purpose sslclient -CAfile "$CERT_DIR/ca.crt" "$CERT_DIR/client.crt" >/dev/null
+  for identity in backend worker; do
+    openssl x509 -in "$CERT_DIR/$identity-client.crt" -noout >/dev/null
+    openssl pkey -in "$CERT_DIR/$identity-client.key" -noout >/dev/null
+    openssl verify -purpose sslclient -CAfile "$CERT_DIR/ca.crt" "$CERT_DIR/$identity-client.crt" >/dev/null
+    if ! diff -q <(openssl x509 -in "$CERT_DIR/$identity-client.crt" -pubkey -noout) <(openssl pkey -in "$CERT_DIR/$identity-client.key" -pubout) >/dev/null; then
+      echo "ERROR: gRPC $identity client certificate and private key do not match." >&2
+      exit 1
+    fi
+    if ! openssl x509 -in "$CERT_DIR/$identity-client.crt" -noout -ext extendedKeyUsage | grep -q 'TLS Web Client Authentication'; then
+      echo "ERROR: gRPC $identity client certificate must include clientAuth extendedKeyUsage." >&2
+      exit 1
+    fi
+  done
   if ! diff -q <(openssl x509 -in "$CERT_DIR/server.crt" -pubkey -noout) <(openssl pkey -in "$CERT_DIR/server.key" -pubout) >/dev/null; then
     echo "ERROR: gRPC server certificate and private key do not match." >&2
-    exit 1
-  fi
-  if ! diff -q <(openssl x509 -in "$CERT_DIR/client.crt" -pubkey -noout) <(openssl pkey -in "$CERT_DIR/client.key" -pubout) >/dev/null; then
-    echo "ERROR: gRPC client certificate and private key do not match." >&2
     exit 1
   fi
   if ! openssl x509 -in "$CERT_DIR/server.crt" -noout -ext subjectAltName | grep -q 'DNS:network_engine'; then
@@ -100,10 +106,6 @@ if command -v openssl >/dev/null 2>&1; then
   fi
   if ! openssl x509 -in "$CERT_DIR/server.crt" -noout -ext extendedKeyUsage | grep -q 'TLS Web Server Authentication'; then
     echo "ERROR: gRPC server certificate must include serverAuth extendedKeyUsage." >&2
-    exit 1
-  fi
-  if ! openssl x509 -in "$CERT_DIR/client.crt" -noout -ext extendedKeyUsage | grep -q 'TLS Web Client Authentication'; then
-    echo "ERROR: gRPC client certificate must include clientAuth extendedKeyUsage." >&2
     exit 1
   fi
 fi
