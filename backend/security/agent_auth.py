@@ -16,7 +16,7 @@ AGENT_SIGNATURE_MAX_SKEW_SECONDS = 300
 
 def _canonical_request(method: str, path: str, timestamp: str, body: bytes) -> bytes:
     body_hash = hashlib.sha256(body).hexdigest()
-    return "\\n".join(
+    return "\n".join(
         (method.upper(), path, timestamp, body_hash)
     ).encode("utf-8")
 
