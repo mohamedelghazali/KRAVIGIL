@@ -115,6 +115,17 @@ def delete_asset(
             Scan.tenant_id == current_user.tenant_id,
         ).all()
     ]
+    active_scan = db.query(Scan.id).filter(
+        Scan.id.in_(scan_ids),
+        Scan.tenant_id == current_user.tenant_id,
+        Scan.status.in_(["PENDING", "RUNNING"]),
+    ).first() if scan_ids else None
+    if active_scan:
+        raise HTTPException(
+            status_code=409,
+            detail="Cancel all active scans and wait for terminal states before deleting this asset",
+        )
+
     try:
         EvidenceManager.delete_for_scans(db, scan_ids, current_user.tenant_id)
         if scan_ids:
