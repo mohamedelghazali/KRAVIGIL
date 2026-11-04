@@ -10,7 +10,7 @@
 - Issue #1 inventory: **87/87 entries dispositioned** — 25 implemented with tests or active integration, 62 safely de-scoped, 0 unassigned scaffold entries.
 - The inventory count closes the placeholder audit; it is not a production-readiness certification.
 - Transport-level mTLS is implemented for the C++ gRPC engine. Backend and worker use distinct client identities; the server verifies client certificates and retains the per-request engine token.
-- Production storage no longer relies on a same-host MinIO replica. The deploy script requires an external HTTPS S3-compatible target and refuses local/placeholder endpoints. The actual provider is intentionally not selected in code.
+- Production storage no longer relies on a same-host MinIO replica. The deploy script requires an external HTTPS S3-compatible replication target and refuses local/placeholder endpoints. However, the primary evidence store still uses the self-hosted MinIO service; its long-term support/image lifecycle and migration to a managed provider are not resolved. The external replica is not a substitute for selecting and validating a supported primary storage provider.
 
 ## Changes already merged
 
@@ -43,7 +43,7 @@ Both code fixes are now merged in PR #35. **A fresh complete run on the post-PR-
 
 ### Production acceptance — not executed
 
-1. Select and contract an S3-compatible provider that supports the MinIO Client replication and lifecycle APIs; configure a separate account/region/failure domain.
+1. Select and contract a supported primary S3-compatible provider and a separate replication target that supports the MinIO Client replication and lifecycle APIs; configure a separate account/region/failure domain. The current primary still runs self-hosted MinIO and is not certified for long-term production support.
 2. Define evidence and backup retention, Object Lock/immutability, legal deletion semantics, RPO and RTO. Evidence delete markers are replicated; backup-bucket deletions are intentionally not propagated.
 3. Execute a real object replication test and verify content hashes on the remote target.
 4. Execute an encrypted PostgreSQL backup and an isolated restore drill; verify the restored database and evidence objects.
