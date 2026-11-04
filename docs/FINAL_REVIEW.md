@@ -6,7 +6,7 @@
 ## Current repository state
 
 - Repository: https://github.com/mohamedelghazali/KRAVIGIL
-- Main SHA at the start of this review update: `f08fc74e0bae8f50dabcfc77fa6bc23afb82a2a5`
+- Main SHA at this reconciliation: `ca736c50c82d781fb4547d4438f5fa443864d94b`
 - Issue #1 inventory: **87/87 entries dispositioned** — 25 implemented with tests or active integration, 62 safely de-scoped, 0 unassigned scaffold entries.
 - The inventory count closes the placeholder audit; it is not a production-readiness certification.
 - Transport-level mTLS is implemented for the C++ gRPC engine. Backend and worker use distinct client identities; the server verifies client certificates and retains the per-request engine token.
@@ -23,6 +23,11 @@
 - PR #30: hardened AI evidence sanitization/output validation and removed duplicate tenant/scope/prompt-guard placeholders.
 - PR #33: removed same-host target MinIO from the production overlay; added an off-host HTTPS replication target and a dual-network replication runner.
 - PR #35: added Alembic revision `0008_scan_task_id`, fixed the tested “ignore the above rules” prompt-injection variant, and replaced static fake secret fixtures that triggered Gitleaks.
+- PR #39: expanded sensitive-key detection to camelCase and cloud credential names; CI, security scans, and all three image builds passed on its head.
+- PR #41: combined bounded lazy traversal with credential-key normalization, including uppercase cloud-key acronyms; CI, security scans, and all three image builds passed on its head.
+- PR #42: added process-exit shutdown for the OpenTelemetry batch exporter and disabled the asynchronous exporter in pytest. PR #43 corrected the test to tolerate SDK-registered shutdown callbacks.
+- PR #44: made password reset, one-time token consumption, and refresh-session revocation one database transaction; the regression test passed on its PR head.
+- Compose corrections on `main` remove duplicated inherited `security_opt` entries and align the production network-engine `mem_limit` with its deploy memory limit. These were committed directly as `d011b2f` and `ff95247`, contrary to the PR-only invariant in the execution plan; subsequent work returned to PRs.
 
 ## Validation evidence and remaining gaps
 
@@ -40,6 +45,17 @@ Both code fixes are now merged in PR #35. **A fresh complete run on the post-PR-
 - PR #30: the Gitleaks scan flagged static test-only token examples; PR #35 replaced those literals with dynamically constructed fixtures. A fresh Gitleaks run on the current main SHA is still required.
 - PR #33: Ruff/MyPy, frontend and C++ jobs passed; Python security and secret scanning passed. Its Compose validation failed because the CI command did not explicitly load `.env.example`. Backend tests had the two failures listed above. The backend and network-engine images passed; the worker image was still running at the last recorded check.
 - The current CI correction uses `docker compose --env-file .env.example` and syntax-checks the production deployment/replication scripts. It must pass in a fresh run before this document can be upgraded.
+
+
+### Latest exact-main validation
+
+- Current candidate: `ca736c50c82d781fb4547d4438f5fa443864d94b`.
+- Main CI run `41872358651`, Security Scans run `41872358440`, and three-image verification run `41872358536` were queued/in progress when this reconciliation was written. Do not infer a pass until all three complete on this exact SHA.
+- PR #41 validation: CI `41870927537` passed; Security Scans `41870927966` passed; all three image builds `41870927790` passed.
+- PR #43 validation: CI `41872066492` passed with **138 passed**, **28 warnings**, and **66% overall coverage**; Security Scans `41872066598` passed. Its three-image run was still in progress at the last check.
+- PR #44's password-reset atomicity regression passed, and its Security Scans run `41872226631` passed. Its PR-head CI run failed only because it was based on the pre-PR-43 telemetry test; the merged main history contains the PR #43 correction. The current exact-main CI run is the required revalidation.
+- The 66% global coverage figure must not conceal critical-module gaps: auth endpoint 30%, tenant DB dependency 36%, evidence manager 28%, scan endpoint 49%, scope guard 67%, RBAC 99%, AI security guard 100%, and AI output validator 85% on the captured report. Expand targeted tests for the low-coverage security and evidence paths.
+- The current CI `lint-and-format` job reports success, but the Black check is configured as non-blocking and existing formatting debt remains. Pydantic/Starlette deprecation warnings also remain. Do not mark W3 complete on this basis.
 
 ### Production acceptance — not executed
 
