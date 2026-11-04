@@ -120,8 +120,11 @@ class SecurityGuard:
                     continue
                 pending.append(("dict_iter", value))
                 raw_key = str(key).strip()
+                acronym_normalized = re.sub(
+                    r"([A-Z]+)([A-Z][a-z])", r"\1_\2", raw_key
+                )
                 normalized = re.sub(
-                    r"([a-z0-9])([A-Z])", r"\1_\2", raw_key
+                    r"([a-z0-9])([A-Z])", r"\1_\2", acronym_normalized
                 ).lower().replace("-", "_")
                 if normalized in self.sensitive_keys:
                     logger.warning("Data policy violation: sensitive field detected")
