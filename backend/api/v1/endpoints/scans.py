@@ -15,7 +15,9 @@ from backend.core.audit_service import AuditService
 from backend.security.scope_guard import ScopeGuard
 from backend.core.config import get_settings
 import ipaddress
+import logging
 from workers.tasks import run_network_scan, run_web_scan, run_sast_scan, run_cloud_scan
+from backend.services.evidence.evidence_manager import EvidenceManager
 from workers.celery_app import celery_app
 from engines.network_cpp.grpc_client import NetworkEngineClient
 import os
@@ -23,6 +25,7 @@ from pydantic import BaseModel, Field, validator
 import uuid
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 def _resolve_scan_ip(target: Target, guard: ScopeGuard) -> str:
     # Validate every configured destination. When both fields are present,
@@ -288,8 +291,17 @@ def delete_scan(
     if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
 
-    db.delete(scan)
-    db.commit()
+    try:
+        EvidenceManager.delete_for_scans(db, [scan.id], current_user.tenant_id)
+        db.delete(scan)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Scan deletion blocked while cleaning evidence for %s", scan_id)
+        raise HTTPException(
+            status_code=503,
+            detail="Scan deletion is pending because associated evidence could not be removed; retry the request",
+        ) from exc
 
     AuditService.log_event(
         action="SCAN_DELETED",
