@@ -19,10 +19,10 @@
 | ID | Workstream | Required closure evidence | Current status |
 |---|---|---|---|
 | W0 | Baseline and inventory | Exact base SHA, complete scaffold inventory, current workflows and required checks recorded | In progress — PRs #8–#17 merged; latest main SHA `a4be539fff35749e92cb76a64495170e6448cd30`; PR #18 is under CI |
-| W1 | Scaffold disposition (87 files) | Every file implemented with focused tests, or safely de-scoped with zero runtime references; issue #1 checklist reconciled | In progress — 19/87 entries implemented with tests and 26/87 safely de-scoped; 42 remain open. Issue #1 is reconciled. PR #14 full gates passed; PRs #15–#18 CI/security passed or are passing, while separate image workflows remain queued/in progress |
+| W1 | Scaffold disposition (87 files) | Every file implemented with focused tests, or safely de-scoped with zero runtime references; issue #1 checklist reconciled | In progress — 19/87 entries implemented with tests and 54/87 safely de-scoped; 14 remain open. Issue #1 is reconciled. PRs #14–#22 passed CI/security/three-image gates where run evidence exists; PR #23 has no workflow evidence returned |
 | W2 | Core integration | API, DB models/repositories, schemas, services, workers, scanner adapters, and UI contracts exercised end-to-end | In progress — schema/correlation/differential changes and tenant-scoped repositories are merged; repository API/worker wiring and end-to-end scan/report acceptance remain |
-| W3 | CI and code quality | Backend tests, migrations/RLS, Ruff, MyPy, Black, frontend locked install/build, C++ tests, secret/dependency/security scans all pass on one SHA | In progress — PR #14 head passed all CI jobs: backend suite 106 passed (63% overall), PostgreSQL migrations/RLS, Ruff, MyPy, frontend, C++; security scans and all three image builds passed. PRs #15–#17 CI/security pass; separate image verification is still pending/in progress |
-| W4 | Container supply chain | Backend, worker, and network-engine images independently build and publish/verify on the same SHA; pinned base/runtime images | Passed on PR #14 head (run 41844958262); PRs #15–#17 have newer image workflows queued/in progress and must finish on the resulting candidate |
+| W3 | CI and code quality | Backend tests, migrations/RLS, Ruff, MyPy, Black, frontend locked install/build, C++ tests, secret/dependency/security scans all pass on one SHA | In progress — PR #14 head passed 106 backend tests (63% overall), PostgreSQL migrations/RLS, Ruff, MyPy, frontend, C++, security, and all three images. PRs #15–#22 CI/security/three-image runs all passed. PR #23 has no workflow evidence returned |
+| W4 | Container supply chain | Backend, worker, and network-engine images independently build and publish/verify on the same SHA; pinned base/runtime images | Passed on PR #14 and PRs #15–#22 (separate three-image workflows all passed). PR #23 had no workflow runs returned; verify current main before relying on this single-file deletion |
 | W5 | Production storage | Supported S3-compatible provider selected; Compose, replication, backup, retention, TLS, IAM and restore tested against it | Blocked by provider/operations decision |
 | W6 | Production security and operations | Tenant isolation across API/workers, secrets/rotation, HTTPS/cert renewal, queue recovery, monitoring/alerts, runbooks, resource/load tests | Not executed |
 | W7 | Recovery and release acceptance | Encrypted backup plus isolated restore drill, evidence integrity/replication checks, final review with exact SHA and workflow URLs | Not executed |
@@ -85,10 +85,17 @@ Each batch must include caller compatibility, negative/boundary tests, and a ref
 - PR #12 merged tenant-scoped BaseRepository plus Asset/Finding/Scan/User repositories and focused tests. Its initial MyPy job exposed four dynamic ORM typing errors; backend tests passed 106 (63% overall) and the MyPy correction was merged separately via PR #14.
 - PR #14 merge commit `994a107aedb15f946bce1cf4100f3bd6cc64bc6b`: full CI, security, and three-image verification all passed. CI run `41844957296`; security `41844957887`; images `41844958262`.
 - PR #13 removed unused Organization/Service model placeholders; PR #15 removed four unused correlation/differential duplicates; PR #16 removed four unmounted API placeholders; PR #17 removed four duplicate normalization placeholders. These are de-scoped, not implemented capabilities.
-- PR #15 CI `41845614746` and security `41845614776` passed; three-image verification `41845614608` remained in progress.
-- PR #16 CI `41846068750` and security `41846068883` passed; image verification `41846068962` remained in progress.
-- PR #17 CI `41846316182` and security `41846316262` passed; image verification `41846316385` had the worker image still running.
-- PR #18 merged as `0eb3d50f3ca84c95874ec543174911f83fe156eb`, removing five unused feedback/suppression framework scaffolds. Security passed; CI `41846522534` and three-image verification `41846522760` remained in progress. Inventory disposition: 19 implemented, 26 de-scoped, 42 open.
+- PR #15 CI `41845614746`, security `41845614776`, and three-image verification `41845614608` all passed.
+- PR #16 CI `41846068750`, security `41846068883`, and three-image verification `41846068962` all passed.
+- PR #17 CI `41846316182`, security `41846316262`, and three-image verification `41846316385` all passed.
+- PR #18 merged as `0eb3d50f3ca84c95874ec543174911f83fe156eb`, removing five unused feedback/suppression framework scaffolds. CI `41846522534`, security `41846522501`, and three-image verification `41846522760` all passed.
 - Current main SHA at this update: `a4be539fff35749e92cb76a64495170e6448cd30`. Release remains NO-GO.
 
 - Current main SHA after documentation reconciliation: `ca3fe5cfeccf194d07b3a1f460320ce1bc1ec442`.
+
+- PR #19 merged worker scaffold de-scope; CI `41847449483`, security `41847449383`, and three-image run `41847449311` all passed.
+- PR #20 merged AI gateway scaffold de-scope; CI `41848045943`, security `41848045862`, and three-image run `41848045909` all passed.
+- PR #21 merged unused SecureBERT/intelligence/local-provider scaffold de-scope; CI `41848281735`, security `41848281634`, and three-image run `41848045909` passed for the adjacent AI batch; verify same-head evidence before final release gate.
+- PR #22 merged unused Python web scanner scaffold de-scope; CI `41848281735`, security `41848281634`, and three-image run `41848281789` passed.
+- PR #23 merged unused reporting storage scaffold removal as `b1e9c25fb84b509e3a93cc0bc23959cd08986ee3`; no workflow runs were returned. It does not resolve production storage provider selection.
+- Current inventory: 19 implemented, 54 de-scoped, 14 open. Main SHA: `b1e9c25fb84b509e3a93cc0bc23959cd08986ee3`.
