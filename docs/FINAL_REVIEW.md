@@ -30,15 +30,16 @@ The latest CI runs must be inspected directly before each release decision. The 
 
 Black formatting is currently non-blocking. The latest check reported **84 files would be reformatted**; this is outstanding formatting debt, not a passing formatting check.
 
-**Latest verified functional CI candidate:** PR #11 head `7e90aaa3a6851adf13fdcac254ce57d4c2e57d61` (2026-11-04). The current `main` also contains subsequent documentation/inventory reconciliation commits.
+**Latest fully verified candidate:** PR #14 head `28a3f69d375a62d4f87a57ca23f118362a2c2f7e` (2026-11-04). Subsequent PRs #15–#17 are merged to `main`, with CI/security passing but separate image verification still queued/in progress.
 
-The latest PR #11 head CI workflow passed:
-- Backend tests with PostgreSQL migrations and non-superuser RLS role: passed (the earlier PR #9 backend suite reported **101 passed**, measured overall coverage **62%**).
-- Ruff, MyPy, and frontend production build: passed.
-- C++ network engine build and unit tests: passed.
+The latest fully green PR #14 head passed:
+- Backend tests with PostgreSQL migrations and non-superuser RLS role: **106 passed**, measured overall coverage **63%**.
+- Ruff, MyPy, frontend production build, and C++ network-engine tests: passed.
 - Bandit, pip-audit, and Gitleaks: passed.
-- Separate Docker verification: backend, worker, and network-engine image jobs all passed (run [41843202364](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/41843202364)).
-- Workflow evidence: CI [41843202479](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/41843202479), Security [41843202440](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/41843202440).
+- Separate Docker verification: backend, worker, and network-engine image jobs all passed (run [41844958262](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/41844958262)).
+- Workflow evidence: CI [41844957296](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/41844957296), Security [41844957887](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/41844957887).
+
+PRs #15–#17 have been merged since that fully verified candidate. Their CI and security workflows passed, but their separate image verification workflows were still queued/in progress at the last inspection: #15 run [41845614608](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/41845614608), #16 [41846068962](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/41846068962), #17 [41846316385](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/41846316385).
 
 The separate Docker verification workflow uses three independent jobs (backend, worker, network engine). All three completed successfully on PR #11 head in run [41843202364](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/41843202364).
 
@@ -46,7 +47,7 @@ The separate Docker verification workflow uses three independent jobs (backend, 
 
 ### 1. Incomplete implementation
 
-The original inventory contained **87 Python source files** with the explicit scaffold marker. The reconciled issue #1 inventory now records **14 entries implemented with tests**, **7 safely de-scoped** (one unused PDF worker and six unreferenced duplicate scanner-adapter placeholders), and **66 entries still open**. The correlation/normalization test suite was included in PR #9's backend run (101 passed; 62% measured overall coverage). Broader end-to-end acceptance remains outstanding. The remaining files carry the marker:
+The original inventory contained **87 Python source files** with the explicit scaffold marker. The reconciled issue #1 inventory now records **19 entries implemented with tests**, **21 safely de-scoped**, and **47 entries still open**. The five repository modules were implemented in PR #12 and their tests passed in PR #14's backend suite (106 passed; 63% overall measured coverage). Broader end-to-end acceptance remains outstanding. The remaining files carry the marker:
 
 \`KRAVIGIL module scaffold. Implementation pending.\`
 
@@ -81,7 +82,7 @@ No production deployment has been performed from this review. The following rema
 
 ## Release decision
 
-**NO-GO.** KRAVIGIL is not certified for production release until the remaining scaffold inventory in [issue #1](https://github.com/mohamedelghazali/KRAVIGIL/issues/1) is resolved, the current candidate PR #4 passes all required checks on one commit, backend and all three container-image workflows pass on the same commit, production object storage is migrated/configured and verified, and an isolated backup/restore acceptance run succeeds.
+**NO-GO.** KRAVIGIL is not certified for production release until the 47 remaining inventory entries in [issue #1](https://github.com/mohamedelghazali/KRAVIGIL/issues/1) are implemented or safely de-scoped, all latest merged changes pass CI/security/three-image verification on a common candidate, production object storage is selected/configured/verified, and an isolated backup/restore acceptance run succeeds.
 
 ## 2026-11-04 closure update
 
@@ -100,3 +101,13 @@ A green CI run is necessary but not sufficient. Reassess this document after eve
 - PR #11 head `7e90aaa3a6851adf13fdcac254ce57d4c2e57d61`: CI run `41843202479` passed all jobs (backend/PostgreSQL RLS, lint/type checks, frontend build, C++ tests); security run `41843202440` passed Bandit, pip-audit, and Gitleaks; Docker image run `41843202364` passed backend, worker, and network-engine images.
 - The current `main` tip is documentation/inventory reconciliation commit `88627dcd4353201ecbec28d3fa7b96daa248a5d4`; no CI run was returned for that documentation-only commit. The functional evidence above is tied to the PR #11 head, not falsely attributed to the docs commit.
 - Production remains **NO-GO**: 66 inventory entries remain open; production object storage is still based on the MinIO community images and is not accepted; HTTPS/secret rotation/tenant isolation across all workers/retention/backup-restore/load/operations acceptance have not been run in a production-like environment.
+
+
+## 2026-11-04 — repository closure continuation
+
+- PR #12 added tenant-scoped SQLAlchemy repositories and focused tests. The first MyPy run failed on four generic ORM attribute references; this was fixed in PR #14. PR #14 passed CI (106 backend tests, 63% overall measured coverage), security scans, and all three container image builds before merge.
+- PR #13 removed unused organization/service model stubs. PR #15 removed four unused correlation/differential placeholders. PR #16 removed four unmounted API placeholders. PR #17 removed four duplicate normalization placeholders.
+- Inventory: 19 implemented with tests, 21 safely de-scoped, 47 open. PR #18 is pending to de-scope five unused feedback framework placeholders; if accepted, the count becomes 19 implemented, 26 de-scoped, 42 open.
+- PRs #15–#17 are already merged, but their separate image-verification workflows were queued or in progress at the last check. Do not infer their image gates passed from merge status.
+- Current main SHA at review update: `a4be539fff35749e92cb76a64495170e6448cd30`.
+- Production remains **NO-GO**: production S3-compatible storage, deployment acceptance, tenant isolation across all API/worker paths, secrets/HTTPS operations, evidence retention, encrypted backup/restore, load tests, monitoring, and runbooks are not yet verified.
