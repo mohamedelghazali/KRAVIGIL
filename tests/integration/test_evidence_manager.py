@@ -303,7 +303,7 @@ def test_periodic_reconciler_keeps_tombstone_when_storage_is_unavailable(
     tenant_id, scan_id = _create_scan(db_session)
     record, object_key, payload = _create_evidence(db_session, tenant_id, scan_id)
     record.deletion_status = "PENDING_DELETE"
-    record.deletion_requested_at = __import__("datetime").datetime.utcnow()
+    record.deletion_requested_at = datetime.utcnow()
     db_session.commit()
 
     storage = FakeStorage()
