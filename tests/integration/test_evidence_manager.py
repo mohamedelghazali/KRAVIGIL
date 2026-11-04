@@ -5,6 +5,7 @@ from io import BytesIO
 import pytest
 
 import backend.services.evidence.evidence_manager as evidence_module
+import workers.tasks as worker_tasks
 from backend.database.models.asset import Asset
 from backend.database.models.evidence import Evidence
 from backend.database.models.scan import Scan
@@ -268,4 +269,53 @@ def test_initial_tombstone_commit_failure_does_not_remove_object(
     db_session.rollback()
     persisted = db_session.query(Evidence).filter(Evidence.id == record.id).one()
     assert persisted.deletion_status == "ACTIVE"
+    assert object_key in storage.objects
+
+
+
+def test_periodic_reconciler_removes_pending_evidence_deletion(
+    db_session, monkeypatch
+):
+    tenant_id, scan_id = _create_scan(db_session)
+    record, object_key, payload = _create_evidence(db_session, tenant_id, scan_id)
+    record.deletion_status = "PENDING_DELETE"
+    record.deletion_requested_at = __import__("datetime").datetime.utcnow()
+    db_session.commit()
+
+    storage = FakeStorage()
+    storage.objects[object_key] = payload
+    monkeypatch.setattr(evidence_module, "MinIOClient", lambda: storage)
+    monkeypatch.setattr(worker_tasks, "SessionLocal", lambda: db_session)
+    monkeypatch.setattr(worker_tasks, "set_worker_tenant", lambda db, tenant: None)
+    monkeypatch.setattr(worker_tasks, "_close_worker_session", lambda db: None)
+
+    result = worker_tasks.reconcile_pending_evidence_deletions()
+
+    assert result == {"deleted": 1, "failed": 0}
+    assert db_session.query(Evidence).filter(Evidence.id == record.id).count() == 0
+    assert object_key not in storage.objects
+
+
+def test_periodic_reconciler_keeps_tombstone_when_storage_is_unavailable(
+    db_session, monkeypatch
+):
+    tenant_id, scan_id = _create_scan(db_session)
+    record, object_key, payload = _create_evidence(db_session, tenant_id, scan_id)
+    record.deletion_status = "PENDING_DELETE"
+    record.deletion_requested_at = __import__("datetime").datetime.utcnow()
+    db_session.commit()
+
+    storage = FakeStorage()
+    storage.objects[object_key] = payload
+    storage.fail_delete = True
+    monkeypatch.setattr(evidence_module, "MinIOClient", lambda: storage)
+    monkeypatch.setattr(worker_tasks, "SessionLocal", lambda: db_session)
+    monkeypatch.setattr(worker_tasks, "set_worker_tenant", lambda db, tenant: None)
+    monkeypatch.setattr(worker_tasks, "_close_worker_session", lambda db: None)
+
+    result = worker_tasks.reconcile_pending_evidence_deletions()
+
+    assert result == {"deleted": 0, "failed": 1}
+    persisted = db_session.query(Evidence).filter(Evidence.id == record.id).one()
+    assert persisted.deletion_status == "PENDING_DELETE"
     assert object_key in storage.objects
