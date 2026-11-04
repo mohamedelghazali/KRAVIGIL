@@ -21,6 +21,6 @@ export interface Finding {
 export interface Scan {
   id: string;
   target_id: string;
-  status: "queued" | "running" | "completed" | "failed" | "cancelled";
+  status: "pending" | "queued" | "running" | "completed" | "failed" | "cancelled";
   created_at?: string;
 }

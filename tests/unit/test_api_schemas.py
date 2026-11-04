@@ -113,3 +113,4 @@ def test_finding_read_accepts_orm_shape() -> None:
     assert response.severity is Severity.CRITICAL
     assert response.validation_status is ValidationStatus.CONFIRMED
     assert response.workflow_status is FindingWorkflowStatus.OPEN
+    assert FindingWorkflowStatus("RESOLVED") is FindingWorkflowStatus.RESOLVED
