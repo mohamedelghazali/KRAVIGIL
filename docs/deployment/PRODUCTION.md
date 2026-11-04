@@ -5,7 +5,7 @@
 - Linux host with Docker Engine and the Docker Compose v2 plugin
 - Public DNS record for the application domain
 - Valid HTTPS certificate for the application domain (Let's Encrypt files mounted at `/etc/letsencrypt`)
-- PostgreSQL persistent storage and a tested off-host backup destination
+- PostgreSQL persistent storage, a supported off-host S3-compatible replication destination, and a tested encrypted backup/restore path
 - SMTP credentials for password-reset delivery
 - At least 4 CPU cores, 16 GB RAM and 100 GB persistent storage; size resources against measured workload
 
@@ -107,7 +107,7 @@ From the repository root:
 ./scripts/go_live.sh
 ```
 
-The script validates secrets and certificates, requires an off-host HTTPS S3-compatible replication target, builds images, starts healthy dependencies, configures and verifies replication for evidence and backup buckets, applies Alembic migrations with the database administrator, seeds the initial administrator, provisions a non-superuser `kravigil_app` role, and runs the API and workers with that role so PostgreSQL row-level security is actually enforced. It then starts the remaining services, including encrypted PostgreSQL backups, and checks the HTTPS system-health endpoint. The temporary replication client is attached to both the internal data network and the egress-enabled control network; the database/data network itself remains internal.
+The script validates secrets and certificates, requires an off-host HTTPS S3-compatible replication target that supports the MinIO Client replication/lifecycle APIs, builds images, starts healthy dependencies, configures and verifies replication for evidence and backup buckets, applies Alembic migrations with the database administrator, seeds the initial administrator, provisions a non-superuser `kravigil_app` role, and runs the API and workers with that role so PostgreSQL row-level security is actually enforced. It then starts the remaining services, including encrypted PostgreSQL backups, and checks the HTTPS system-health endpoint. The temporary replication client is attached to both the internal data network and the egress-enabled control network; the database/data network itself remains internal.
 
 The script does not perform a production deployment from this chat. Run it on the intended host after reviewing the configuration.
 
@@ -122,7 +122,7 @@ Before opening public access:
 5. Wait for the first encrypted PostgreSQL backup to finish and confirm the backup container is healthy. Verify MinIO replication for both evidence and backup buckets.
 6. Restore a backup into an isolated PostgreSQL database: download the `.dump.gpg` object and its `.sha256` sidecar, run `sha256sum -c`, decrypt with `gpg --batch --pinentry-mode loopback --passphrase-file "$BACKUP_PASSPHRASE_FILE" --output restore.dump --decrypt backup.dump.gpg`, then validate with `pg_restore --list` before restoring with `pg_restore --clean --if-exists --no-owner --no-acl`. Never test restore against the live production database.
 7. Verify evidence objects and their SHA-256 hashes after replication and restore.
-8. Confirm bucket versioning and replication state on the remote target. The production overlay no longer starts a second MinIO container on the same host; deployment refuses local/placeholder targets and requires an HTTPS endpoint. Confirm the provider's replication target is in a separate account/region/failure domain and configure provider-side Object Lock/retention where required.
+8. Confirm bucket versioning and replication state on the remote target. The production overlay no longer starts a second MinIO container on the same host; deployment refuses local/placeholder targets and requires an HTTPS endpoint. Confirm the provider's replication target is in a separate account/region/failure domain and configure provider-side Object Lock/retention where required. Evidence delete markers are replicated to honor application deletions; backup-bucket deletions are deliberately not replicated so source-side compromise cannot erase the recovery copy. Verify the configured retention policy against legal and privacy requirements.
 9. Review firewall rules; expose only the intended HTTPS entry point. Do not publish PostgreSQL, Redis, MinIO, Grafana or the gRPC engine directly.
 
 ## 6. Operational cautions
