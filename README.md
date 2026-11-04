@@ -8,7 +8,7 @@
 2. Set `MINIO_TARGET_URL` to a real external HTTPS S3-compatible endpoint, with separate target credentials and a separate failure domain. The placeholder is deliberately rejected by the deployment script.
 3. Configure the application domain in `FRONTEND_URL`, `ALLOWED_ORIGINS`, and `infrastructure/nginx/nginx.prod.conf`.
 4. Generate the gRPC CA/server/backend-client/worker-client certificates as described in [Production Deployment](docs/deployment/PRODUCTION.md).
-4. Install Docker Engine with the Docker Compose v2 plugin, then run:
+5. Install Docker Engine with the Docker Compose v2 plugin, then run:
 
 ```bash
 ./scripts/go_live.sh
