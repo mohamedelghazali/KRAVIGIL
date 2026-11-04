@@ -129,7 +129,7 @@ def delete_schedule(
     current_user: User = Depends(require_role(["admin", "analyst"])),
     db: Session = Depends(get_tenant_db)
 ):
-    schedule = db.query(ScheduledScan).filter(ScheduledScan.id == schedule_id).first()
+    schedule = db.query(ScheduledScan).filter(ScheduledScan.id == schedule_id, ScheduledScan.tenant_id == current_user.tenant_id).first()
     if not schedule:
         raise HTTPException(status_code=404, detail="Schedule not found")
     db.delete(schedule)
