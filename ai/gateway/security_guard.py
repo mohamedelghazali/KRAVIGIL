@@ -11,6 +11,8 @@ class SecurityGuard:
 
     MAX_INPUT_LENGTH = 65536
     MAX_OUTPUT_LENGTH = 15000
+    MAX_POLICY_NODES = 10000
+    MAX_POLICY_VALUE_LENGTH = 65536
 
     def __init__(self):
         self.injection_patterns = [
@@ -87,25 +89,36 @@ class SecurityGuard:
         return re.sub(r"\s+", " ", clean_text).strip()[:output_limit]
 
     def validate_data_policy(self, finding_data: Dict[str, Any]) -> bool:
+        """Reject sensitive keys/values and bound traversal of untrusted JSON."""
         if not isinstance(finding_data, dict):
             return False
 
-        def contains_sensitive_data(value: Any) -> bool:
+        pending = [finding_data]
+        visited = 0
+        while pending:
+            visited += 1
+            if visited > self.MAX_POLICY_NODES:
+                logger.warning("Data policy violation: finding context exceeds node limit")
+                return False
+
+            value = pending.pop()
             if isinstance(value, dict):
                 for key, nested in value.items():
                     normalized = str(key).strip().lower().replace("-", "_")
-                    if normalized in self.sensitive_keys or contains_sensitive_data(nested):
-                        return True
+                    if normalized in self.sensitive_keys:
+                        logger.warning("Data policy violation: sensitive field detected")
+                        return False
+                    pending.append(nested)
             elif isinstance(value, (list, tuple)):
-                return any(contains_sensitive_data(item) for item in value)
+                pending.extend(value)
             elif isinstance(value, str):
-                return any(
+                if len(value) > self.MAX_POLICY_VALUE_LENGTH:
+                    logger.warning("Data policy violation: field exceeds size limit")
+                    return False
+                if any(
                     re.search(pattern, value, flags=re.DOTALL) is not None
                     for pattern in self.secret_patterns
-                )
-            return False
-
-        if contains_sensitive_data(finding_data):
-            logger.warning("Data policy violation: sensitive field detected")
-            return False
+                ):
+                    logger.warning("Data policy violation: secret-like value detected")
+                    return False
         return True

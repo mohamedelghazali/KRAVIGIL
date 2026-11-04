@@ -60,6 +60,11 @@ def test_data_policy_recursively_rejects_sensitive_fields():
     assert not guard.validate_data_policy(
         {"description": "Captured Authorization: Bearer " + ("x" * 40)}
     )
+    assert not guard.validate_data_policy({"description": "x" * 65537})
+    deeply_nested = {"safe": True}
+    for _ in range(1500):
+        deeply_nested = [deeply_nested]
+    assert guard.validate_data_policy({"nested": deeply_nested})
     assert not guard.validate_data_policy(["not", "an", "object"])
 
 

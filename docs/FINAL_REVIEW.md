@@ -1,149 +1,60 @@
 # KRAVIGIL — Release Readiness Review
+
 **Assessment date:** 2026-11-04  
-**Status:** NOT RELEASE CERTIFIED
+**Decision:** **NO-GO — not certified for production deployment**
 
-> This assessment supersedes earlier statements that KRAVIGIL was complete or production-ready. Repository presence, successful static checks, and a successful container build do not establish feature completeness or production acceptance.
+## Current repository state
 
-## Verified engineering work
+- Repository: https://github.com/mohamedelghazali/KRAVIGIL
+- Main SHA at the start of this review update: `f08fc74e0bae8f50dabcfc77fa6bc23afb82a2a5`
+- Issue #1 inventory: **87/87 entries dispositioned** — 25 implemented with tests or active integration, 62 safely de-scoped, 0 unassigned scaffold entries.
+- The inventory count closes the placeholder audit; it is not a production-readiness certification.
+- Transport-level mTLS is implemented for the C++ gRPC engine. Backend and worker use distinct client identities; the server verifies client certificates and retains the per-request engine token.
+- Production storage no longer relies on a same-host MinIO replica. The deploy script requires an external HTTPS S3-compatible replication target and refuses local/placeholder endpoints. However, the primary evidence store still uses the self-hosted MinIO service; its long-term support/image lifecycle and migration to a managed provider are not resolved. The external replica is not a substitute for selecting and validating a supported primary storage provider.
 
-- Alembic migration heads were merged with a graph-only merge revision (\`0006_merge_rls_heads\`).
-- SQLAlchemy UUID columns use the cross-dialect \`Uuid\` type so SQLite test fixtures and PostgreSQL deployments share the same model definitions.
-- Scan and Observation ORM relationships are bidirectional.
-- JWT subject values are parsed and validated as UUIDs before querying user records.
-- Password hashing dependency is pinned to a Passlib-compatible bcrypt release.
-- gRPC Python bindings are generated in CI and have checked-in type declarations.
-- Network engine cancellation ordering, timer cancellation, and port-range validation were corrected.
-- CI now exercises PostgreSQL migrations and tenant RLS using a non-superuser application role.
-- Evidence integration tests use a pinned S3-compatible test server; this is a test double, not a production object store.
+## Changes already merged
 
-## CI checks
+- PRs #19–#24: worker/AI/web-scanner scaffold disposition, reporting data-path correction and reporting tests.
+- PR #25: CI now invokes unit, integration, regression and security suites; network scan integration coverage was repaired.
+- PR #26: false-positive disposition is preserved across repeated finding correlation.
+- PR #27: removed the marker-only performance test; real load/latency benchmarking remains an acceptance requirement.
+- PR #28: removed four unused AI-security placeholders in favor of the active Gemini gateway path.
+- PR #29: added transport-level gRPC mTLS, distinct backend/worker identities and deployment certificate-chain validation.
+- PR #30: hardened AI evidence sanitization/output validation and removed duplicate tenant/scope/prompt-guard placeholders.
+- PR #33: removed same-host target MinIO from the production overlay; added an off-host HTTPS replication target and a dual-network replication runner.
+- PR #35: added Alembic revision `0008_scan_task_id`, fixed the tested “ignore the above rules” prompt-injection variant, and replaced static fake secret fixtures that triggered Gitleaks.
 
-The latest CI runs must be inspected directly before each release decision. The following checks have passed in recent runs:
+## Validation evidence and remaining gaps
 
-- Ruff
-- MyPy
-- Frontend build
-- C++ network engine compilation and unit tests
-- Gitleaks secret scan
-- Bandit high-severity scan
-- pip-audit dependency scan
+### Backend and application CI
 
-Black formatting is currently non-blocking. The latest check reported **84 files would be reformatted**; this is outstanding formatting debt, not a passing formatting check.
+The most recent full backend run before PR #35 (run `41861082647`) reported **134 passed, 2 failed**:
+1. PostgreSQL regression exposed the missing `scans.task_id` migration.
+2. Prompt-injection coverage exposed the “ignore the above rules” wording variant.
 
-**Latest fully verified candidate:** PR #14 head `28a3f69d375a62d4f87a57ca23f118362a2c2f7e` (2026-11-04). Subsequent PRs #15–#17 are merged to `main`, with CI/security passing but separate image verification still queued/in progress.
+Both code fixes are now merged in PR #35. **A fresh complete run on the post-PR-35 main SHA is still required**; the earlier run cannot be retroactively treated as passing.
 
-The latest fully green PR #14 head passed:
-- Backend tests with PostgreSQL migrations and non-superuser RLS role: **106 passed**, measured overall coverage **63%**.
-- Ruff, MyPy, frontend production build, and C++ network-engine tests: passed.
-- Bandit, pip-audit, and Gitleaks: passed.
-- Separate Docker verification: backend, worker, and network-engine image jobs all passed (run [41844958262](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/41844958262)).
-- Workflow evidence: CI [41844957296](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/41844957296), Security [41844957887](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/41844957887).
+### Security and build evidence
 
-PRs #15–#17 have been merged since that fully verified candidate. Their CI and security workflows passed, but their separate image verification workflows were still queued/in progress at the last inspection: #15 run [41845614608](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/41845614608), #16 [41846068962](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/41846068962), #17 [41846316385](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/41846316385).
+- PR #29: lint/type checks, frontend build, C++ build, security scans, and backend/network-engine/worker image builds passed. Its backend job still failed on the then-missing migration.
+- PR #30: the Gitleaks scan flagged static test-only token examples; PR #35 replaced those literals with dynamically constructed fixtures. A fresh Gitleaks run on the current main SHA is still required.
+- PR #33: Ruff/MyPy, frontend and C++ jobs passed; Python security and secret scanning passed. Its Compose validation failed because the CI command did not explicitly load `.env.example`. Backend tests had the two failures listed above. The backend and network-engine images passed; the worker image was still running at the last recorded check.
+- The current CI correction uses `docker compose --env-file .env.example` and syntax-checks the production deployment/replication scripts. It must pass in a fresh run before this document can be upgraded.
 
-The separate Docker verification workflow uses three independent jobs (backend, worker, network engine). All three completed successfully on PR #11 head in run [41843202364](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/41843202364).
+### Production acceptance — not executed
 
-## Release blockers
+1. Select and contract a supported primary S3-compatible provider and a separate replication target that supports the MinIO Client replication and lifecycle APIs; configure a separate account/region/failure domain. The current primary still runs self-hosted MinIO and is not certified for long-term production support.
+2. Define evidence and backup retention, Object Lock/immutability, legal deletion semantics, RPO and RTO. Evidence delete markers are replicated; backup-bucket deletions are intentionally not propagated.
+3. Execute a real object replication test and verify content hashes on the remote target.
+4. Execute an encrypted PostgreSQL backup and an isolated restore drill; verify the restored database and evidence objects.
+5. Deploy to a production-like staging host with real DNS, HTTPS certificate renewal, mTLS certificates, secret rotation, non-superuser database role, monitoring, alerting and runbooks.
+6. Run representative load, latency, worker-recovery and resource-exhaustion tests. The former placeholder benchmark was removed; no performance acceptance result is claimed.
+7. Verify tenant isolation across API, worker and storage paths using PostgreSQL RLS and non-superuser runtime credentials.
+8. Make frontend builds reproducible: `frontend/package.json` currently has caret ranges and no npm lockfile, so CI uses `npm install` rather than `npm ci`. Generate and commit `package-lock.json`, then switch CI to `npm ci`.
+9. Pin production container images and GitHub Actions to immutable versions/digests. The Compose stack still contains floating tags such as `minio/minio:latest`, `postgres:15-alpine`, and `redis:7-alpine`; do not treat mutable tags as a supply-chain lock.
 
-### 1. Incomplete implementation
+## Release gate
 
-The original inventory contained **87 Python source files** with the explicit scaffold marker. The reconciled issue #1 inventory now records **19 entries implemented with tests**, **21 safely de-scoped**, and **47 entries still open**. The five repository modules were implemented in PR #12 and their tests passed in PR #14's backend suite (106 passed; 63% overall measured coverage). Broader end-to-end acceptance remains outstanding. The remaining files carry the marker:
+Do not declare the project production-ready or expose it to public users until one exact candidate SHA passes all required CI, security, Compose and three-image gates, and every production acceptance item above has verifiable evidence.
 
-\`KRAVIGIL module scaffold. Implementation pending.\`
-
-These are not functional implementations. Each must either be implemented and tested against an acceptance criterion, or formally removed from the shipped scope. A placeholder must never be counted as a completed module. A blocking inventory and closure checklist is tracked in [issue #1](https://github.com/mohamedelghazali/KRAVIGIL/issues/1).
-
-### 2. Production object storage
-
-The production Compose configuration and replication scripts still depend on the upstream \`minio/minio\` and \`minio/mc\` images. The upstream community image distribution has changed; the CI S3Mock service is only for tests and cannot replace production storage.
-
-Before production deployment, select and configure a supported S3-compatible provider with verified versioning, replication, retention/Object Lock requirements, backup access, TLS, and restore behavior. Update Compose, backup, replication, environment examples, and operations documentation together. Do not deploy against S3Mock.
-
-### 3. Production acceptance not executed
-
-No production deployment has been performed from this review. The following remain unverified on a real deployment target:
-
-- HTTPS ingress, certificate renewal, and externally reachable health checks
-- Secret injection and rotation
-- Complete application startup and service health
-- Tenant isolation across all API and worker paths
-- Evidence retention, integrity verification, and cross-location replication
-- Encrypted backup creation and isolated restore drill
-- Worker queue recovery and retry behavior
-- Monitoring, alert delivery, and incident response runbooks
-- Resource limits and load behavior under concurrent scans
-
-### 4. Quality and maintenance debt
-
-- Black reports 84 files requiring formatting.
-- Frontend CI currently uses \`npm install\` because a lockfile is absent; generate and commit a reviewed lockfile, then return CI to \`npm ci\`.
-- Pydantic v1-style validators and class-based configuration still generate deprecation warnings.
-- Add meaningful coverage thresholds only after the unimplemented modules have tests; current test success alone is not a coverage guarantee.
-
-## Release decision
-
-**NO-GO.** KRAVIGIL is not certified for production release until the 47 remaining inventory entries in [issue #1](https://github.com/mohamedelghazali/KRAVIGIL/issues/1) are implemented or safely de-scoped, all latest merged changes pass CI/security/three-image verification on a common candidate, production object storage is selected/configured/verified, and an isolated backup/restore acceptance run succeeds.
-
-## 2026-11-04 closure update
-
-- PR #2 was merged to `main` (merge commit `9e59954fb999ee4f60b3dc58e1d835ed31c4397d`), adding the evidence-based closure plan and full-history Gitleaks checkout.
-- Implemented shared severity/status enums and scan/finding Pydantic schemas, with focused unit tests. The four corresponding issue #1 inventory entries are checked as implemented; CI and integration acceptance are still required.
-- PR #4 (`feat(api): close scan and finding schema scaffold slice`) was merged. Its backend test job failed (75 passed, 1 failed) because uppercase `RESOLVED` did not normalize; this was corrected on `main` with regression coverage. PR #5 integrates the asset, user, and report schemas into their API endpoints and is undergoing CI revalidation.
-- Latest recorded closure-plan commit: `610d83fafc15744f470037d13eab3a121c68c626`. This is a documentation commit, not evidence that all tests passed.
-- PR #4's frontend, C++ build, lint, container-build job, Bandit, pip-audit, and Gitleaks checks passed; its backend test job failed. PR #9's CI/security/image gates passed. PR #11 de-scopes six unused integration scaffolds; its backend tests and security checks passed, while C++/container/image checks remain in progress. No production acceptance or release approval is claimed.
-
-A green CI run is necessary but not sufficient. Reassess this document after every blocker is closed and attach the exact commit SHA and workflow run URLs to the release record.
-
-
-## Verified update — 2026-11-04, PR #11
-
-- PR #8 correlation/differential implementation merged; PR #9 timestamp regression import fix merged; PR #10 unused PDF worker removal merged; PR #11 six duplicate unused integration adapter removals merged.
-- PR #11 head `7e90aaa3a6851adf13fdcac254ce57d4c2e57d61`: CI run `41843202479` passed all jobs (backend/PostgreSQL RLS, lint/type checks, frontend build, C++ tests); security run `41843202440` passed Bandit, pip-audit, and Gitleaks; Docker image run `41843202364` passed backend, worker, and network-engine images.
-- The current `main` tip is documentation/inventory reconciliation commit `88627dcd4353201ecbec28d3fa7b96daa248a5d4`; no CI run was returned for that documentation-only commit. The functional evidence above is tied to the PR #11 head, not falsely attributed to the docs commit.
-- Production remains **NO-GO**: 66 inventory entries remain open; production object storage is still based on the MinIO community images and is not accepted; HTTPS/secret rotation/tenant isolation across all workers/retention/backup-restore/load/operations acceptance have not been run in a production-like environment.
-
-
-## 2026-11-04 — repository closure continuation
-
-- PR #12 added tenant-scoped SQLAlchemy repositories and focused tests. The first MyPy run failed on four generic ORM attribute references; this was fixed in PR #14. PR #14 passed CI (106 backend tests, 63% overall measured coverage), security scans, and all three container image builds before merge.
-- PR #13 removed unused organization/service model stubs. PR #15 removed four unused correlation/differential placeholders. PR #16 removed four unmounted API placeholders. PR #17 removed four duplicate normalization placeholders.
-- Inventory: 19 implemented with tests, 54 safely de-scoped, 14 open. PRs #19–#22 safely de-scoped worker, AI, and web-scanner placeholders; CI/security/three-image gates passed on those heads. PR #23 removed the unused reporting storage scaffold, but no workflow evidence was returned for that PR/merge.
-- PRs #15–#17 are already merged, but their separate image-verification workflows were queued or in progress at the last check. Do not infer their image gates passed from merge status.
-- Current main SHA at review update: `b1e9c25fb84b509e3a93cc0bc23959cd08986ee3`.
-- Production remains **NO-GO**: production S3-compatible storage, deployment acceptance, tenant isolation across all API/worker paths, secrets/HTTPS operations, evidence retention, encrypted backup/restore, load tests, monitoring, and runbooks are not yet verified.
-
-
-## PR #18 update — 2026-11-04
-
-- PR #18 merged as `0eb3d50f3ca84c95874ec543174911f83fe156eb`, safely removing five unused feedback framework scaffolds.
-- Inventory now stands at **19 implemented**, **26 de-scoped**, **42 open**.
-- Security scan passed. CI run `41846522534` and three-image verification `41846522760` were in progress at the last check; no completion is claimed.
-- Production release remains **NO-GO**.
-
-
-## PRs #19–#23 closure update — 2026-11-04
-
-- PR #19 de-scoped seven duplicate worker modules; CI `41847449483`, security `41847449383`, and all three images `41847449311` passed.
-- PR #20 de-scoped three unused AI gateway modules; CI `41847616541`, security `41847616553`, and images `41847616513` passed.
-- PR #21 de-scoped six AI intelligence, four SecureBERT, and one local provider scaffold; CI `41848045943`, security `41848045862`, and image verification `41848045909` passed.
-- PR #22 de-scoped six unused Python web scanner modules; CI `41848281735`, security `41848281634`, and three images `41848281789` passed.
-- PR #23 removed unused `backend/services/reporting/minio_storage.py`; no workflow runs were returned. This does not close the production storage provider blocker.
-- Inventory: **21 implemented**, **54 safely de-scoped**, **12 open** (three backend security modules, five AI security modules, worker scope guard, one performance test, one regression test, and one prompt-injection test).
-- Main SHA: `b1e9c25fb84b509e3a93cc0bc23959cd08986ee3`.
-- Production remains **NO-GO** due to the 14 open inventory items, unresolved production storage provider, and unexecuted production/restore acceptance.
-
-
-## Reporting fix and CI test coverage — 2026-11-04
-
-- PR #24 fixed report generation's invalid `Finding.scan_id` lookup by joining findings through tenant-scoped observations. It added report extraction/PDF orchestration tests. PR #24 CI `41849313111`, security `41849313667`, and all three images `41849313242` passed; note that integration tests were not included in that CI command.
-- PR #25 expands the CI backend command to run unit, integration, regression, and security tests, repairs the network scan pipeline integration test, and adds scan tenant/port/cloud-provider tests. Its integration/backend tests and image workflow are still running; Ruff/MyPy, frontend, C++, and Gitleaks have passed.
-- Inventory: 21 implemented, 54 safely de-scoped, 12 open. Production remains **NO-GO** pending the final security workstream, performance/regression tests, storage provider acceptance, and production/restore validation.
-
-
-## PostgreSQL scan task correlation correction — 2026-11-04
-
-- PostgreSQL regression exposed schema drift: the `Scan` ORM and API/worker task tracking use `scans.task_id`, but Alembic revision `0007_api_key_owner` did not create it.
-- Candidate revision `0008_scan_task_id` adds nullable `VARCHAR(255)` `scans.task_id` without modifying existing rows.
-- The regression suite must pass against PostgreSQL after applying the full migration chain; SQLite-only results are insufficient.
-- The latest `main` CI already validates the production Compose overlay and deployment/MinIO shell scripts. This PR branch is based on that latest `main` and preserves those stronger checks.
-- Production release remains **NO-GO** until fresh CI/security/image verification and the production storage, backup/restore, deployment and operational acceptance gates are completed.
+The current deployment script deliberately fails until a real remote HTTPS replication endpoint and credentials are configured. No production deployment has been performed from this review.
