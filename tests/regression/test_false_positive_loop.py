@@ -40,6 +40,7 @@ def test_correlation_engine_keeps_rejected_finding_rejected_on_repeat_scan():
     from sqlalchemy.orm import sessionmaker
 
     from backend.database.models.asset import Asset
+    from backend.database.models.finding import Finding
     from backend.database.models.observation import Observation
     from backend.database.models.scan import Scan
     from backend.database.models.target import Target
