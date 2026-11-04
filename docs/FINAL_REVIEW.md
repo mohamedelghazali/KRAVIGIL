@@ -1,5 +1,5 @@
 # KRAVIGIL — Release Readiness Review
-**Assessment date:** 2026-11-03  
+**Assessment date:** 2026-11-04  
 **Status:** NOT RELEASE CERTIFIED
 
 > This assessment supersedes earlier statements that KRAVIGIL was complete or production-ready. Repository presence, successful static checks, and a successful container build do not establish feature completeness or production acceptance.
@@ -45,7 +45,7 @@ The separate Docker verification workflow was hardened after the earlier run was
 
 ### 1. Incomplete implementation
 
-The repository contains **87 Python source files** that are explicit scaffolds with the marker:
+The original inventory contained **87 Python source files** with the explicit scaffold marker. Four inventory entries (shared severity/status enums and scan/finding schemas) now have implementations and focused unit tests; **83 entries remain open**, and the four implemented entries still require CI/integration acceptance. The remaining files carry the marker:
 
 \`KRAVIGIL module scaffold. Implementation pending.\`
 
@@ -80,6 +80,14 @@ No production deployment has been performed from this review. The following rema
 
 ## Release decision
 
-**NO-GO.** KRAVIGIL is not certified for production release until the scaffold inventory in [issue #1](https://github.com/mohamedelghazali/KRAVIGIL/issues/1) is resolved, backend and all three container-image workflows pass on the same commit, production object storage is migrated/configured and verified, and an isolated backup/restore acceptance run succeeds.
+**NO-GO.** KRAVIGIL is not certified for production release until the remaining scaffold inventory in [issue #1](https://github.com/mohamedelghazali/KRAVIGIL/issues/1) is resolved, the current candidate PR #4 passes all required checks on one commit, backend and all three container-image workflows pass on the same commit, production object storage is migrated/configured and verified, and an isolated backup/restore acceptance run succeeds.
+
+## 2026-11-04 closure update
+
+- PR #2 was merged to `main` (merge commit `9e59954fb999ee4f60b3dc58e1d835ed31c4397d`), adding the evidence-based closure plan and full-history Gitleaks checkout.
+- Implemented shared severity/status enums and scan/finding Pydantic schemas, with focused unit tests. The four corresponding issue #1 inventory entries are checked as implemented; CI and integration acceptance are still required.
+- PR #4 (`feat(api): close scan and finding schema scaffold slice`) is open and ready for review. It wires the findings API to the shared schemas and aligns the frontend scan lifecycle type. It must not be merged until its CI checks are green.
+- Latest recorded closure-plan commit: `610d83fafc15744f470037d13eab3a121c68c626`. This is a documentation commit, not evidence that all tests passed.
+- The PR #4 CI/security/container runs were still in progress or queued at the time of this update. No production acceptance or release approval is claimed.
 
 A green CI run is necessary but not sufficient. Reassess this document after every blocker is closed and attach the exact commit SHA and workflow run URLs to the release record.
