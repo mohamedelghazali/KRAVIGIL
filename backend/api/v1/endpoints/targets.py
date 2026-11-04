@@ -1,7 +1,10 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from typing import List
 from backend.database.models.target import Target
+from backend.database.models.scan import Scan
+from backend.services.evidence.evidence_manager import EvidenceManager
 from backend.database.models.user import User
 from backend.database.tenant import get_tenant_db
 from backend.core.security import get_current_user, require_role
@@ -12,6 +15,7 @@ import re
 import uuid
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 class TargetCreate(BaseModel):
     name: str
@@ -209,8 +213,24 @@ def delete_target(
     if not target:
         raise HTTPException(status_code=404, detail="Target not found")
 
-    db.delete(target)
-    db.commit()
+    scan_ids = [
+        row[0]
+        for row in db.query(Scan.id).filter(
+            Scan.target_id == target.id,
+            Scan.tenant_id == current_user.tenant_id,
+        ).all()
+    ]
+    try:
+        EvidenceManager.delete_for_scans(db, scan_ids, current_user.tenant_id)
+        db.delete(target)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Target deletion blocked while cleaning evidence for %s", target_id)
+        raise HTTPException(
+            status_code=503,
+            detail="Target deletion is pending because associated evidence could not be removed; retry the request",
+        ) from exc
 
     AuditService.log_event(
         action="TARGET_DELETED",
