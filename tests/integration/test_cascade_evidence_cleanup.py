@@ -155,3 +155,59 @@ def test_parent_delete_stays_pending_when_evidence_storage_delete_fails(
     assert db_session.query(Scan).filter(Scan.id == scan_id).count() == 0
     assert db_session.query(Evidence).filter(Evidence.id == evidence_id).count() == 0
     assert object_key not in storage.objects
+
+
+def test_scan_delete_rejects_active_scan_without_touching_evidence(
+    client, db_session, integration_admin, monkeypatch
+):
+    user, headers = integration_admin
+    _, _, scan, evidence, object_key, payload = _create_chain(db_session, user.tenant_id)
+    scan_id, evidence_id = scan.id, evidence.id
+    scan.status = "RUNNING"
+    db_session.commit()
+    storage = _patch_storage(monkeypatch, object_key, payload)
+
+    response = client.delete(f"/api/v1/scans/{scan_id}", headers=headers)
+
+    assert response.status_code == 409
+    assert db_session.query(Scan).filter(Scan.id == scan_id).count() == 1
+    assert db_session.query(Evidence).filter(Evidence.id == evidence_id).count() == 1
+    assert object_key in storage.objects
+
+
+def test_asset_delete_rejects_active_descendant_scan(
+    client, db_session, integration_admin, monkeypatch
+):
+    user, headers = integration_admin
+    _, asset, scan, evidence, object_key, payload = _create_chain(db_session, user.tenant_id)
+    asset_id, scan_id, evidence_id = asset.id, scan.id, evidence.id
+    scan.status = "PENDING"
+    db_session.commit()
+    storage = _patch_storage(monkeypatch, object_key, payload)
+
+    response = client.delete(f"/api/v1/assets/{asset_id}", headers=headers)
+
+    assert response.status_code == 409
+    assert db_session.query(Asset).filter(Asset.id == asset_id).count() == 1
+    assert db_session.query(Scan).filter(Scan.id == scan_id).count() == 1
+    assert db_session.query(Evidence).filter(Evidence.id == evidence_id).count() == 1
+    assert object_key in storage.objects
+
+
+def test_target_delete_rejects_active_descendant_scan(
+    client, db_session, integration_admin, monkeypatch
+):
+    user, headers = integration_admin
+    target, _, scan, evidence, object_key, payload = _create_chain(db_session, user.tenant_id)
+    target_id, scan_id, evidence_id = target.id, scan.id, evidence.id
+    scan.status = "RUNNING"
+    db_session.commit()
+    storage = _patch_storage(monkeypatch, object_key, payload)
+
+    response = client.delete(f"/api/v1/targets/{target_id}", headers=headers)
+
+    assert response.status_code == 409
+    assert db_session.query(Target).filter(Target.id == target_id).count() == 1
+    assert db_session.query(Scan).filter(Scan.id == scan_id).count() == 1
+    assert db_session.query(Evidence).filter(Evidence.id == evidence_id).count() == 1
+    assert object_key in storage.objects
