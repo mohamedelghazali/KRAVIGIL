@@ -1,3 +1,4 @@
+import logging
 import uuid
 from typing import List
 
@@ -8,11 +9,14 @@ from backend.core.audit_service import AuditService
 from backend.core.security import get_current_user, require_role
 from backend.database.models.asset import Asset
 from backend.database.models.target import Target
+from backend.database.models.scan import Scan
+from backend.services.evidence.evidence_manager import EvidenceManager
 from backend.database.models.user import User
 from backend.database.tenant import get_tenant_db
 from backend.schemas.asset import AssetCreate, AssetRead as AssetResponse, AssetUpdate
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 @router.post("/", response_model=AssetResponse, status_code=status.HTTP_201_CREATED)
 def create_asset(
@@ -104,8 +108,39 @@ def delete_asset(
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
 
-    db.delete(asset)
-    db.commit()
+    scan_ids = [
+        row[0]
+        for row in db.query(Scan.id).filter(
+            Scan.asset_id == asset.id,
+            Scan.tenant_id == current_user.tenant_id,
+        ).all()
+    ]
+    active_scan = db.query(Scan.id).filter(
+        Scan.id.in_(scan_ids),
+        Scan.tenant_id == current_user.tenant_id,
+        Scan.status.in_(["PENDING", "RUNNING"]),
+    ).first() if scan_ids else None
+    if active_scan:
+        raise HTTPException(
+            status_code=409,
+            detail="Cancel all active scans and wait for terminal states before deleting this asset",
+        )
+
+    try:
+        EvidenceManager.delete_for_scans(db, scan_ids, current_user.tenant_id)
+        if scan_ids:
+            db.query(Scan).filter(
+                Scan.id.in_(scan_ids), Scan.tenant_id == current_user.tenant_id
+            ).delete(synchronize_session=False)
+        db.delete(asset)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Asset deletion blocked while cleaning evidence for %s", asset_id)
+        raise HTTPException(
+            status_code=503,
+            detail="Asset deletion is pending because associated evidence could not be removed; retry the request",
+        ) from exc
 
     AuditService.log_event(
         action="ASSET_DELETED",
