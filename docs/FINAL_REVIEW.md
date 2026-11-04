@@ -107,9 +107,9 @@ A green CI run is necessary but not sufficient. Reassess this document after eve
 
 - PR #12 added tenant-scoped SQLAlchemy repositories and focused tests. The first MyPy run failed on four generic ORM attribute references; this was fixed in PR #14. PR #14 passed CI (106 backend tests, 63% overall measured coverage), security scans, and all three container image builds before merge.
 - PR #13 removed unused organization/service model stubs. PR #15 removed four unused correlation/differential placeholders. PR #16 removed four unmounted API placeholders. PR #17 removed four duplicate normalization placeholders.
-- Inventory: 19 implemented with tests, 26 safely de-scoped, 42 open. PR #18 merged as `0eb3d50f3ca84c95874ec543174911f83fe156eb`, removing five unused feedback framework placeholders. Its security scan passed; CI and three-image verification were still running.
+- Inventory: 19 implemented with tests, 54 safely de-scoped, 14 open. PRs #19–#22 safely de-scoped worker, AI, and web-scanner placeholders; CI/security/three-image gates passed on those heads. PR #23 removed the unused reporting storage scaffold, but no workflow evidence was returned for that PR/merge.
 - PRs #15–#17 are already merged, but their separate image-verification workflows were queued or in progress at the last check. Do not infer their image gates passed from merge status.
-- Current main SHA at review update: `ca3fe5cfeccf194d07b3a1f460320ce1bc1ec442`.
+- Current main SHA at review update: `b1e9c25fb84b509e3a93cc0bc23959cd08986ee3`.
 - Production remains **NO-GO**: production S3-compatible storage, deployment acceptance, tenant isolation across all API/worker paths, secrets/HTTPS operations, evidence retention, encrypted backup/restore, load tests, monitoring, and runbooks are not yet verified.
 
 
@@ -119,3 +119,15 @@ A green CI run is necessary but not sufficient. Reassess this document after eve
 - Inventory now stands at **19 implemented**, **26 de-scoped**, **42 open**.
 - Security scan passed. CI run `41846522534` and three-image verification `41846522760` were in progress at the last check; no completion is claimed.
 - Production release remains **NO-GO**.
+
+
+## PRs #19–#23 closure update — 2026-11-04
+
+- PR #19 de-scoped seven duplicate worker modules; CI `41847449483`, security `41847449383`, and all three images `41847449311` passed.
+- PR #20 de-scoped three unused AI gateway modules; CI `41848045943`, security `41848045862`, and images `41848045909` passed.
+- PR #21 de-scoped six AI intelligence, four SecureBERT, and one local provider scaffold; CI `41848281735` and security `41848281634` passed; image verification run `41848045909` completed successfully for the same AI cleanup wave.
+- PR #22 de-scoped six unused Python web scanner modules; CI `41848281735`, security `41848281634`, and three images `41848281789` passed.
+- PR #23 removed unused `backend/services/reporting/minio_storage.py`; no workflow runs were returned. This does not close the production storage provider blocker.
+- Inventory: **19 implemented**, **54 safely de-scoped**, **14 open** (three backend security modules, five AI security modules, worker scope guard, and five integration/performance/regression/security tests).
+- Main SHA: `b1e9c25fb84b509e3a93cc0bc23959cd08986ee3`.
+- Production remains **NO-GO** due to the 14 open inventory items, unresolved production storage provider, and unexecuted production/restore acceptance.
