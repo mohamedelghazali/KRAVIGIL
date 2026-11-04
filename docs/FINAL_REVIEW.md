@@ -107,7 +107,15 @@ A green CI run is necessary but not sufficient. Reassess this document after eve
 
 - PR #12 added tenant-scoped SQLAlchemy repositories and focused tests. The first MyPy run failed on four generic ORM attribute references; this was fixed in PR #14. PR #14 passed CI (106 backend tests, 63% overall measured coverage), security scans, and all three container image builds before merge.
 - PR #13 removed unused organization/service model stubs. PR #15 removed four unused correlation/differential placeholders. PR #16 removed four unmounted API placeholders. PR #17 removed four duplicate normalization placeholders.
-- Inventory: 19 implemented with tests, 21 safely de-scoped, 47 open. PR #18 is pending to de-scope five unused feedback framework placeholders; if accepted, the count becomes 19 implemented, 26 de-scoped, 42 open.
+- Inventory: 19 implemented with tests, 26 safely de-scoped, 42 open. PR #18 merged as `0eb3d50f3ca84c95874ec543174911f83fe156eb`, removing five unused feedback framework placeholders. Its security scan passed; CI and three-image verification were still running.
 - PRs #15–#17 are already merged, but their separate image-verification workflows were queued or in progress at the last check. Do not infer their image gates passed from merge status.
-- Current main SHA at review update: `a4be539fff35749e92cb76a64495170e6448cd30`.
+- Current main SHA at review update: `ca3fe5cfeccf194d07b3a1f460320ce1bc1ec442`.
 - Production remains **NO-GO**: production S3-compatible storage, deployment acceptance, tenant isolation across all API/worker paths, secrets/HTTPS operations, evidence retention, encrypted backup/restore, load tests, monitoring, and runbooks are not yet verified.
+
+
+## PR #18 update — 2026-11-04
+
+- PR #18 merged as `0eb3d50f3ca84c95874ec543174911f83fe156eb`, safely removing five unused feedback framework scaffolds.
+- Inventory now stands at **19 implemented**, **26 de-scoped**, **42 open**.
+- Security scan passed. CI run `41846522534` and three-image verification `41846522760` were in progress at the last check; no completion is claimed.
+- Production release remains **NO-GO**.
