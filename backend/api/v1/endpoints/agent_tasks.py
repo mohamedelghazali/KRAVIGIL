@@ -12,7 +12,7 @@ from backend.database.session import get_db
 from backend.security.agent_auth import get_authenticated_agent
 from backend.core.exceptions import KravigilException
 from backend.core.audit_service import AuditService
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -29,7 +29,7 @@ class TaskResponse(BaseModel):
 class TaskResultSubmit(BaseModel):
     status: str
     error_message: str | None = None
-    observations: List[dict] = []
+    observations: List[dict] = Field(default_factory=list)
 
 @router.get("/poll", response_model=List[TaskResponse])
 def poll_tasks(
