@@ -18,6 +18,32 @@ class IdentityManager:
         os.makedirs(agent_dir, exist_ok=True)
 
     def generate_identity(self, agent_name: str) -> tuple[str, str]:
+        key_exists = os.path.isfile(self.key_path)
+        cert_exists = os.path.isfile(self.cert_path)
+        if key_exists != cert_exists:
+            raise RuntimeError("Agent identity is incomplete; restore both key and certificate or re-enroll")
+
+        if key_exists and cert_exists:
+            with open(self.key_path, "rb") as key_file:
+                private_key = serialization.load_pem_private_key(
+                    key_file.read(), password=None
+                )
+            with open(self.cert_path, "rb") as cert_file:
+                cert = x509.load_pem_x509_certificate(cert_file.read())
+            private_public_key = private_key.public_key().public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            )
+            certificate_public_key = cert.public_key().public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            )
+            if private_public_key != certificate_public_key:
+                raise RuntimeError("Agent private key does not match its certificate")
+            os.chmod(self.key_path, 0o600)
+            fingerprint = cert.fingerprint(hashes.SHA256()).hex()
+            return fingerprint, private_public_key.decode("utf-8")
+
         private_key = rsa.generate_private_key(public_exponent=65537, key_size=4096)
         
         subject = issuer = x509.Name([
@@ -48,6 +74,7 @@ class IdentityManager:
                 format=serialization.PrivateFormat.TraditionalOpenSSL,
                 encryption_algorithm=serialization.NoEncryption()
             ))
+        os.chmod(self.key_path, 0o600)
 
         with open(self.cert_path, "wb") as f:
             f.write(cert.public_bytes(serialization.Encoding.PEM))

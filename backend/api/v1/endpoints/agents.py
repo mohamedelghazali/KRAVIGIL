@@ -1,11 +1,14 @@
 import uuid
 import logging
 from datetime import datetime
+from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from backend.database.models.agent import Agent
 from backend.database.models.user import User
 from backend.database.tenant import get_tenant_db
+from backend.database.session import get_db
+from backend.security.agent_auth import get_authenticated_agent
 from backend.core.security import require_role
 from backend.core.exceptions import KravigilException
 from pydantic import BaseModel
@@ -21,8 +24,7 @@ class AgentEnrollRequest(BaseModel):
     ip_address: str
 
 class AgentHeartbeatRequest(BaseModel):
-    certificate_fingerprint: str
-    status: str
+    status: Literal["ONLINE", "DEGRADED"]
     ip_address: str
 
 class AgentResponse(BaseModel):
@@ -69,23 +71,25 @@ def enroll_agent(
 @router.post("/heartbeat")
 def agent_heartbeat(
     heartbeat_in: AgentHeartbeatRequest,
-    db: Session = Depends(get_tenant_db)
+    agent: Agent = Depends(get_authenticated_agent),
+    db: Session = Depends(get_db),
 ):
     try:
-        agent = db.query(Agent).filter(Agent.certificate_fingerprint == heartbeat_in.certificate_fingerprint).first()
-        if not agent:
-            raise HTTPException(status_code=404, detail="Agent not found")
-            
         agent.last_heartbeat = datetime.utcnow()
         agent.status = heartbeat_in.status
+        # The agent-reported address is informational; do not treat it as an
+        # authenticated network identity.
         agent.ip_address = heartbeat_in.ip_address
         db.commit()
         return {"status": "acknowledged"}
-    except HTTPException:
-        raise
-    except Exception as e:
+    except Exception as exc:
         db.rollback()
-        raise KravigilException(message=str(e), status_code=500, error_code="AGENT_HEARTBEAT_ERROR")
+        logger.exception("Agent heartbeat update failed")
+        raise KravigilException(
+            message="Agent heartbeat update failed",
+            status_code=500,
+            error_code="AGENT_HEARTBEAT_ERROR",
+        ) from exc
 
 @router.get("/", response_model=list[AgentResponse])
 def list_agents(
