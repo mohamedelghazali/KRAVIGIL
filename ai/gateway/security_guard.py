@@ -14,7 +14,7 @@ class SecurityGuard:
 
     def __init__(self):
         self.injection_patterns = [
-            r"(?i)ignore\s+(?:all\s+)?(?:previous|prior|above|earlier)\s+(?:instructions|rules|messages)",
+            r"(?i)ignore\s+(?:all\s+)?(?:the\s+)?(?:previous|prior|above|earlier)\s+(?:instructions|rules|messages)",
             r"(?i)system\s+prompt",
             r"(?i)you\s+are\s+now",
             r"(?i)reveal\s+(?:your|the)\s+(?:system\s+)?prompt",
@@ -90,17 +90,22 @@ class SecurityGuard:
         if not isinstance(finding_data, dict):
             return False
 
-        def contains_sensitive_key(value: Any) -> bool:
+        def contains_sensitive_data(value: Any) -> bool:
             if isinstance(value, dict):
                 for key, nested in value.items():
                     normalized = str(key).strip().lower().replace("-", "_")
-                    if normalized in self.sensitive_keys or contains_sensitive_key(nested):
+                    if normalized in self.sensitive_keys or contains_sensitive_data(nested):
                         return True
             elif isinstance(value, (list, tuple)):
-                return any(contains_sensitive_key(item) for item in value)
+                return any(contains_sensitive_data(item) for item in value)
+            elif isinstance(value, str):
+                return any(
+                    re.search(pattern, value, flags=re.DOTALL) is not None
+                    for pattern in self.secret_patterns
+                )
             return False
 
-        if contains_sensitive_key(finding_data):
+        if contains_sensitive_data(finding_data):
             logger.warning("Data policy violation: sensitive field detected")
             return False
         return True
