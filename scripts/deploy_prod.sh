@@ -67,6 +67,18 @@ if [[ "$TARGET_AUTHORITY" == */* || "$TARGET_AUTHORITY" == *\?* || "$TARGET_AUTH
   echo "ERROR: MINIO_TARGET_URL must be an endpoint origin without path/query/fragment." >&2
   exit 1
 fi
+SOURCE_AUTHORITY="${MINIO_SOURCE_URL#*://}"
+SOURCE_HOST="${SOURCE_AUTHORITY%%[:/]*}"
+if [[ "${TARGET_HOST,,}" == "${SOURCE_HOST,,}" ]]; then
+  echo "ERROR: source and replication target must use different hostnames." >&2
+  exit 1
+fi
+case "${TARGET_HOST,,}" in
+  127.*|host.docker.internal|gateway.docker.internal|localhost.localdomain)
+    echo "ERROR: MINIO_TARGET_URL cannot point back to the local host." >&2
+    exit 1
+    ;;
+esac
 
 case "$FRONTEND_URL" in
   https://*) ;;
