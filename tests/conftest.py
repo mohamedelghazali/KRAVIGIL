@@ -1,3 +1,7 @@
+import os
+
+os.environ.setdefault("KRAVIGIL_TESTING", "1")
+
 import uuid
 
 import pytest
