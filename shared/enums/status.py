@@ -37,3 +37,5 @@ class FindingWorkflowStatus(StrEnum):
     """Finding workflow states currently persisted by the application."""
 
     OPEN = "open"
+    IN_PROGRESS = "in_progress"
+    RESOLVED = "resolved"
