@@ -16,10 +16,13 @@ class FakeStorage:
     def __init__(self):
         self.objects = {}
         self.fail_delete = False
+        self.fail_upload_after_write = False
 
     def upload_stream(self, object_key, stream, content_type):
         payload = stream.read()
         self.objects[object_key] = payload
+        if self.fail_upload_after_write:
+            raise RuntimeError("upload response lost after object write")
         return object_key, hashlib.sha256(payload).hexdigest(), len(payload)
 
     def delete_object(self, object_key):
@@ -118,6 +121,34 @@ def test_refresh_failure_after_commit_preserves_evidence_object(
     assert persisted.object_key in storage.objects
     assert storage.objects[persisted.object_key] == b"committed evidence"
     assert persisted.sha256 == hashlib.sha256(b"committed evidence").hexdigest()
+
+
+
+def test_ambiguous_upload_failure_cleans_up_remote_object(
+    db_session, monkeypatch
+):
+    tenant_id, scan_id = _create_scan(db_session)
+    storage = FakeStorage()
+    storage.fail_upload_after_write = True
+    monkeypatch.setattr(evidence_module, "MinIOClient", lambda: storage)
+    manager = evidence_module.EvidenceManager(db_session)
+
+    with pytest.raises(RuntimeError, match="upload response lost after object write"):
+        manager.store_evidence(
+            tenant_id=tenant_id,
+            scan_id=scan_id,
+            finding_id=None,
+            stream=BytesIO(b"remotely written but unacknowledged"),
+            content_type="application/octet-stream",
+        )
+
+    assert storage.objects == {}
+    assert (
+        db_session.query(Evidence)
+        .filter(Evidence.tenant_id == tenant_id, Evidence.scan_id == scan_id)
+        .count()
+        == 0
+    )
 
 
 def test_database_commit_failure_cleans_up_uploaded_evidence(
