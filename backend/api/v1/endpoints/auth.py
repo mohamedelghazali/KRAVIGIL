@@ -148,18 +148,29 @@ def login_mfa(request: Request, mfa_in: MFAVerifyRequest, db: Session = Depends(
 def refresh_token(request: Request, refresh_in: RefreshRequest, db: Session = Depends(get_db)):
     payload = security_service.decode_token(refresh_in.refresh_token, "refresh")
     
+    try:
+        token_user_id = uuid.UUID(str(payload.get("sub")))
+        token_tenant_id = uuid.UUID(str(payload.get("tenant")))
+    except (ValueError, TypeError, AttributeError):
+        raise HTTPException(status_code=401, detail="Invalid refresh token claims")
+
     _set_auth_lookup(db)
     token_hash = hashlib.sha256(refresh_in.refresh_token.encode()).hexdigest()
     session = db.query(UserSession).filter(
         UserSession.refresh_token_hash == token_hash,
-        UserSession.is_revoked == False
+        UserSession.user_id == token_user_id,
+        UserSession.tenant_id == token_tenant_id,
+        UserSession.is_revoked.is_(False),
     ).first()
-    
+
     if not session or session.expires_at < datetime.utcnow():
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
 
-    _set_tenant_context(db, session.tenant_id)
-    user = db.query(User).filter(User.id == payload.get("sub")).first()
+    _set_tenant_context(db, token_tenant_id)
+    user = db.query(User).filter(
+        User.id == token_user_id,
+        User.tenant_id == token_tenant_id,
+    ).first()
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found or inactive")
 
@@ -286,7 +297,8 @@ def change_password(
 
     db.query(UserSession).filter(
         UserSession.user_id == current_user.id,
-        UserSession.is_revoked == False
+        UserSession.tenant_id == current_user.tenant_id,
+        UserSession.is_revoked.is_(False),
     ).update({"is_revoked": True}, synchronize_session=False)
     db.commit()
 
