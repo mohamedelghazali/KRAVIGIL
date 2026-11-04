@@ -290,6 +290,11 @@ def delete_scan(
     scan = db.query(Scan).filter(Scan.id == scan_id, Scan.tenant_id == current_user.tenant_id).first()
     if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
+    if scan.status in {"PENDING", "RUNNING"}:
+        raise HTTPException(
+            status_code=409,
+            detail="Cancel the active scan and wait for a terminal state before deleting it",
+        )
 
     try:
         EvidenceManager.delete_for_scans(db, [scan.id], current_user.tenant_id)
