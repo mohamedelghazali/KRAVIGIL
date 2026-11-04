@@ -20,10 +20,13 @@ target_host="${target_authority%%[:/]*}"
 target_host="${target_host,,}"
 
 case "$target_host" in
-  ""|localhost|minio|target-minio|127.0.0.1|0.0.0.0|change_me*)
+  ""|localhost|localhost.localdomain|minio|target-minio|host.docker.internal|gateway.docker.internal|127.*|0.0.0.0|change_me*)
     echo "ERROR: MINIO_TARGET_URL must identify a remote storage endpoint, not a local Compose service or placeholder." >&2
     exit 1
     ;;
+esac
+case "$target_authority" in
+  \[::1\]*|\[::\]*) echo "ERROR: MINIO_TARGET_URL cannot use a loopback/unspecified IPv6 address." >&2; exit 1 ;;
 esac
 if [[ "$target_host" == "${source_host,,}" ]]; then
   echo "ERROR: source and replication target must use different hostnames." >&2
