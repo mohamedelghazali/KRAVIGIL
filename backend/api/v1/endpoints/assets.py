@@ -1,39 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
-from sqlalchemy.orm import Session
+import uuid
 from typing import List
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy.orm import Session
+
+from backend.core.audit_service import AuditService
+from backend.core.security import get_current_user, require_role
 from backend.database.models.asset import Asset
 from backend.database.models.target import Target
 from backend.database.models.user import User
 from backend.database.tenant import get_tenant_db
-from backend.core.security import get_current_user, require_role
-from backend.core.exceptions import KravigilException
-from backend.core.audit_service import AuditService
-from pydantic import BaseModel
-import uuid
+from backend.schemas.asset import AssetCreate, AssetRead as AssetResponse, AssetUpdate
 
 router = APIRouter()
-
-class AssetCreate(BaseModel):
-    target_id: uuid.UUID
-    ip_address: str
-    hostname: str | None = None
-    os_family: str | None = None
-
-class AssetUpdate(BaseModel):
-    hostname: str | None = None
-    os_family: str | None = None
-    is_active: bool | None = None
-
-class AssetResponse(BaseModel):
-    id: uuid.UUID
-    ip_address: str
-    hostname: str | None
-    os_family: str | None
-    is_active: bool
-    target_id: uuid.UUID
-
-    class Config:
-        from_attributes = True
 
 @router.post("/", response_model=AssetResponse, status_code=status.HTTP_201_CREATED)
 def create_asset(

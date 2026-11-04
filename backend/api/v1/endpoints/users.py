@@ -1,44 +1,23 @@
+import logging
 import uuid
 from datetime import datetime
-import logging
+from typing import List
+
 import pyotp
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import List
-from backend.database.models.user import User
-from backend.database.models.session import UserSession
-from backend.database.tenant import get_tenant_db
-from backend.core.security import get_current_user, require_role, security_service
-from backend.core.exceptions import KravigilException
+
 from backend.core.audit_service import AuditService
-from pydantic import BaseModel, EmailStr, validator
+from backend.core.exceptions import KravigilException
+from backend.core.security import get_current_user, require_role, security_service
+from backend.database.models.session import UserSession
+from backend.database.models.user import User
+from backend.database.tenant import get_tenant_db
+from backend.schemas.user import UserCreate, UserRead as UserResponse, UserRoleUpdate as UserUpdateRole
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-class UserCreate(BaseModel):
-    email: EmailStr
-    password: str
-    role: str = "analyst"
-
-    @validator("role")
-    def validate_role(cls, v):
-        if v not in ["admin", "analyst", "viewer"]:
-            raise ValueError("Role must be admin, analyst, or viewer")
-        return v
-
-class UserResponse(BaseModel):
-    id: uuid.UUID
-    email: str
-    role: str
-    is_active: bool
-    is_mfa_enabled: bool
-
-    class Config:
-        from_attributes = True
-
-class UserUpdateRole(BaseModel):
-    role: str
 
 class MFASetupResponse(BaseModel):
     secret: str
