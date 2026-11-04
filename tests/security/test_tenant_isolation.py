@@ -132,6 +132,7 @@ def test_refresh_token_cannot_use_another_tenants_session(client, db_session):
     )
     db_session.add(mismatched_session)
     db_session.commit()
+    original_last_used_at = mismatched_session.last_used_at
 
     response = client.post(
         "/api/v1/auth/refresh",
@@ -140,6 +141,4 @@ def test_refresh_token_cannot_use_another_tenants_session(client, db_session):
 
     assert response.status_code == 401
     db_session.refresh(mismatched_session)
-    assert mismatched_session.last_used_at is None or (
-        mismatched_session.last_used_at < mismatched_session.created_at
-    )
+    assert mismatched_session.last_used_at == original_last_used_at
