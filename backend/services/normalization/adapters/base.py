@@ -22,11 +22,17 @@ class BaseEngineAdapter(ABC):
     def _stop_process(process: subprocess.Popen) -> None:
         if process.poll() is not None:
             return
-        process.terminate()
+        try:
+            process.terminate()
+        except ProcessLookupError:
+            pass
         try:
             process.communicate(timeout=5)
         except subprocess.TimeoutExpired:
-            process.kill()
+            try:
+                process.kill()
+            except ProcessLookupError:
+                pass
             process.communicate()
 
     def execute(
