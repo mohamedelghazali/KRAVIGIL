@@ -111,23 +111,48 @@ def start_network_scan(
     current_user: User = Depends(require_permission(Permission.SCAN_CREATE)),
     db: Session = Depends(get_tenant_db)
 ):
+    scan = None
     try:
         scan, asset = _init_scan(db, current_user.tenant_id, scan_in.target_id, "NETWORK")
-        task = run_network_scan.delay(
-            tenant_id=str(current_user.tenant_id),
-            scan_id=str(scan.id),
-            asset_id=str(asset.id),
-            target_ip=asset.ip_address,
-            ports=scan_in.ports
-        )
+        try:
+            task = run_network_scan.delay(
+                tenant_id=str(current_user.tenant_id),
+                scan_id=str(scan.id),
+                asset_id=str(asset.id),
+                target_ip=asset.ip_address,
+                ports=scan_in.ports
+            )
+        except Exception as exc:
+            # _init_scan commits the PENDING row before dispatch. Persist the
+            # dispatch failure explicitly so it cannot remain PENDING forever.
+            db.rollback()
+            failed = db.query(Scan).filter(
+                Scan.id == scan.id,
+                Scan.tenant_id == current_user.tenant_id,
+            ).first()
+            if failed:
+                failed.status = "FAILED"
+                failed.error_message = str(exc)[:2048]
+                failed.finished_at = datetime.utcnow()
+                db.commit()
+            raise KravigilException(
+                message="Failed to enqueue network scan",
+                status_code=500,
+                error_code="SCAN_INIT_ERROR",
+            ) from exc
+
         scan.task_id = task.id
         db.commit()
         return scan
-    except (HTTPException, ScopeViolationException):
+    except (HTTPException, ScopeViolationException, KravigilException):
         raise
-    except Exception as e:
+    except Exception as exc:
         db.rollback()
-        raise KravigilException(message=f"Failed to initiate scan: {str(e)}", status_code=500, error_code="SCAN_INIT_ERROR")
+        raise KravigilException(
+            message=f"Failed to initiate scan: {str(exc)}",
+            status_code=500,
+            error_code="SCAN_INIT_ERROR",
+        ) from exc
 
 @router.post("/web", response_model=ScanResponse, status_code=status.HTTP_202_ACCEPTED)
 def start_web_scan(scan_in: WebScanCreate, current_user: User = Depends(require_permission(Permission.SCAN_CREATE)), db: Session = Depends(get_tenant_db)):
