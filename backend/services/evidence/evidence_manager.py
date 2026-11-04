@@ -38,7 +38,11 @@ class EvidenceManager:
         uploaded_key = None
         database_committed = False
         try:
-            uploaded_key, sha, size = self.storage.upload_stream(object_key, stream, content_type)
+            # The object key is known before upload. Keep it available for
+            # compensating cleanup even when the storage request succeeds
+            # remotely but its response is lost (for example, a timeout).
+            uploaded_key = object_key
+            _, sha, size = self.storage.upload_stream(object_key, stream, content_type)
             record = Evidence(id=evidence_id, tenant_id=tenant_uuid, scan_id=scan_uuid,
                 finding_id=finding_uuid, object_key=uploaded_key, storage_backend="minio",
                 content_type=content_type, size_bytes=size, sha256=sha,
