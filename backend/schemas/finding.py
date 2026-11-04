@@ -51,7 +51,7 @@ class FindingUpdate(BaseModel):
 
     validation_status: ValidationStatus | None = None
     workflow_status: FindingWorkflowStatus | None = None
-    disposition: str | None = Field(default=None, max_length=100)
+    disposition: str | None = Field(default=None, max_length=50)
     remediation: str | None = None
 
 
