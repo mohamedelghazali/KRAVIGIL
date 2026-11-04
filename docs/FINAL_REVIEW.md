@@ -50,6 +50,8 @@ Both code fixes are now merged in PR #35. **A fresh complete run on the post-PR-
 5. Deploy to a production-like staging host with real DNS, HTTPS certificate renewal, mTLS certificates, secret rotation, non-superuser database role, monitoring, alerting and runbooks.
 6. Run representative load, latency, worker-recovery and resource-exhaustion tests. The former placeholder benchmark was removed; no performance acceptance result is claimed.
 7. Verify tenant isolation across API, worker and storage paths using PostgreSQL RLS and non-superuser runtime credentials.
+8. Make frontend builds reproducible: `frontend/package.json` currently has caret ranges and no npm lockfile, so CI uses `npm install` rather than `npm ci`. Generate and commit `package-lock.json`, then switch CI to `npm ci`.
+9. Pin production container images and GitHub Actions to immutable versions/digests. The Compose stack still contains floating tags such as `minio/minio:latest`, `postgres:15-alpine`, and `redis:7-alpine`; do not treat mutable tags as a supply-chain lock.
 
 ## Release gate
 
