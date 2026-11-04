@@ -106,6 +106,15 @@ services:
       - data_plane
       - execution_plane
 
+  scheduler:
+    restart: always
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
   frontend:
     restart: always
     networks:
