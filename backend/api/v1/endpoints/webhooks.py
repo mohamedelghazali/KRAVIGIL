@@ -91,7 +91,7 @@ def delete_webhook(
     current_user: User = Depends(require_role(["admin"])),
     db: Session = Depends(get_tenant_db)
 ):
-    webhook = db.query(Webhook).filter(Webhook.id == webhook_id).first()
+    webhook = db.query(Webhook).filter(Webhook.id == webhook_id, Webhook.tenant_id == current_user.tenant_id).first()
     if not webhook:
         raise HTTPException(status_code=404, detail="Webhook not found")
     db.delete(webhook)
