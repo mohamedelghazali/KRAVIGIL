@@ -31,7 +31,7 @@ def list_audit_logs(
     current_user: User = Depends(require_role(["admin"])),
     db: Session = Depends(get_tenant_db)
 ):
-    query = db.query(AuditLog)
+    query = db.query(AuditLog).filter(AuditLog.tenant_id == current_user.tenant_id)
     if action:
         query = query.filter(AuditLog.action == action)
     
