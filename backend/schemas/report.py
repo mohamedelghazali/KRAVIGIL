@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-ReportType = Literal["PDF", "JSON", "CSV"]
+ReportType = Literal["PDF"]
 ReportStatus = Literal["QUEUED", "RUNNING", "READY", "FAILED"]
 
 
