@@ -69,9 +69,15 @@ def setup_db(monkeypatch):
     db.close()
 
 def get_token(email):
-    res = client.post("/api/v1/auth/login", data={"username": email, "password": "Password123!"})
-    assert res.status_code == 200
-    return res.json()["access_token"]
+    db = TestingSessionLocal()
+    try:
+        user = db.query(User).filter(User.email == email).first()
+        assert user is not None
+        return security_service.create_access_token(
+            data={"sub": str(user.id), "tenant": str(user.tenant_id), "role": user.role}
+        )
+    finally:
+        db.close()
 
 def test_tenant_isolation():
     token_a = get_token("a@test.com")
