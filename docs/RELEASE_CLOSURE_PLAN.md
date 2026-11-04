@@ -19,7 +19,7 @@
 | ID | Workstream | Required closure evidence | Current status |
 |---|---|---|---|
 | W0 | Baseline and inventory | Exact base SHA, complete scaffold inventory, current workflows and required checks recorded | In progress — PRs #8–#17 merged; latest main SHA `a4be539fff35749e92cb76a64495170e6448cd30`; PR #18 is under CI |
-| W1 | Scaffold disposition (87 files) | Every file implemented with focused tests, or safely de-scoped with zero runtime references; issue #1 checklist reconciled | In progress — 19/87 entries implemented with tests and 54/87 safely de-scoped; 14 remain open. Issue #1 is reconciled. PRs #14–#22 passed CI/security/three-image gates where run evidence exists; PR #23 has no workflow evidence returned |
+| W1 | Scaffold disposition (87 files) | Every file implemented with focused tests, or safely de-scoped with zero runtime references; issue #1 checklist reconciled | In progress — 21/87 entries implemented with tests and 54/87 safely de-scoped; 12 remain open. Issue #1 is reconciled. PRs #14–#22 passed CI/security/three-image gates where run evidence exists; PR #23 has no workflow evidence returned |
 | W2 | Core integration | API, DB models/repositories, schemas, services, workers, scanner adapters, and UI contracts exercised end-to-end | In progress — schema/correlation/differential changes and tenant-scoped repositories are merged; repository API/worker wiring and end-to-end scan/report acceptance remain |
 | W3 | CI and code quality | Backend tests, migrations/RLS, Ruff, MyPy, Black, frontend locked install/build, C++ tests, secret/dependency/security scans all pass on one SHA | In progress — PR #14 head passed 106 backend tests (63% overall), PostgreSQL migrations/RLS, Ruff, MyPy, frontend, C++, security, and all three images. PRs #15–#22 CI/security/three-image runs all passed. PR #23 has no workflow evidence returned |
 | W4 | Container supply chain | Backend, worker, and network-engine images independently build and publish/verify on the same SHA; pinned base/runtime images | Passed on PR #14 and PRs #15–#22 (separate three-image workflows all passed). PR #23 had no workflow runs returned; verify current main before relying on this single-file deletion |
@@ -98,4 +98,12 @@ Each batch must include caller compatibility, negative/boundary tests, and a ref
 - PR #21 merged unused SecureBERT/intelligence/local-provider scaffold de-scope; CI `41848045943`, security `41848045862`, and three-image run `41848045909` all passed.
 - PR #22 merged unused Python web scanner scaffold de-scope; CI `41848281735`, security `41848281634`, and three-image run `41848281789` all passed.
 - PR #23 merged unused reporting storage scaffold removal as `b1e9c25fb84b509e3a93cc0bc23959cd08986ee3`; no workflow runs were returned. It does not resolve production storage provider selection.
-- Current inventory: 19 implemented, 54 de-scoped, 14 open. Main SHA: `b1e9c25fb84b509e3a93cc0bc23959cd08986ee3`.
+- Current inventory: 19 implemented, 54 de-scoped, 12 open. Main SHA: `b1e9c25fb84b509e3a93cc0bc23959cd08986ee3`.
+
+
+## Reporting and test-gate update — 2026-11-04
+
+- PR #24 merged the `DataExtractor` fix: report findings are selected through tenant-scoped `Observation.scan_id`, not the nonexistent `Finding.scan_id`. Three reporting integration tests were added. PR #24 CI `41849313111`, security `41849313667`, and all three images `41849313242` passed; however, that CI command still ran only unit/security tests.
+- PR #25 expands the CI command to run `tests/unit`, `tests/integration`, `tests/regression`, and `tests/security`; repairs the invalid existing network scan pipeline test; adds tenant isolation, invalid-port, and cloud-provider validation coverage. Its backend integration suite and image verification are currently running; lint/frontend/C++ and secret scan have passed.
+- Issue #1 inventory: 21 implemented with tests, 54 safely de-scoped, 12 open. The 12 remaining are 9 security-sensitive modules, one performance test, one regression test, and one prompt-injection security test.
+- Current release remains NO-GO.
