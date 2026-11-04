@@ -106,6 +106,8 @@ def test_report_create_and_read_contracts() -> None:
     scan_id = uuid4()
     request = ReportCreate(scan_id=scan_id)
     assert request.report_type == "PDF"
+    with pytest.raises(ValidationError):
+        ReportCreate(scan_id=scan_id, report_type="CSV")
     row = SimpleNamespace(
         id=uuid4(),
         scan_id=scan_id,
