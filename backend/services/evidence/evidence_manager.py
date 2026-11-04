@@ -81,6 +81,37 @@ class EvidenceManager:
         record = self._get_record(evidence_id, tenant_id)
         return self.storage.generate_presigned_url(record.object_key, expires_seconds)
 
+    @classmethod
+    def delete_for_scans(cls, db: Session, scan_ids: list[uuid.UUID],
+                         tenant_id: uuid.UUID) -> int:
+        """Remove all evidence objects and rows before parent scans are cascaded."""
+        tenant_uuid = uuid.UUID(str(tenant_id))
+        scan_uuids = [uuid.UUID(str(scan_id)) for scan_id in scan_ids]
+        if not scan_uuids:
+            return 0
+
+        evidence_ids = [
+            row[0]
+            for row in db.query(Evidence.id).filter(
+                Evidence.tenant_id == tenant_uuid,
+                Evidence.scan_id.in_(scan_uuids),
+            ).order_by(Evidence.id).all()
+        ]
+        if not evidence_ids:
+            return 0
+
+        manager = cls(db)
+        deleted = 0
+        for evidence_id in evidence_ids:
+            try:
+                manager.delete_evidence(evidence_id, tenant_uuid)
+                deleted += 1
+            except ValueError:
+                # Another idempotent deletion may have completed after the
+                # identifier list was read. Missing rows need no storage work.
+                continue
+        return deleted
+
     def delete_evidence(self, evidence_id: uuid.UUID, tenant_id: uuid.UUID) -> None:
         # Persist a tombstone before touching object storage. A failed storage
         # delete or a crash leaves a retryable PENDING_DELETE row, never an
