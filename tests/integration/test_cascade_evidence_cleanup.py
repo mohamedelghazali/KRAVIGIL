@@ -80,13 +80,14 @@ def test_scan_delete_removes_evidence_object_before_row_cascade(
     target, asset, scan, evidence, object_key, payload = _create_chain(
         db_session, user.tenant_id
     )
+    scan_id, evidence_id = scan.id, evidence.id
     storage = _patch_storage(monkeypatch, object_key, payload)
 
-    response = client.delete(f"/api/v1/scans/{scan.id}", headers=headers)
+    response = client.delete(f"/api/v1/scans/{scan_id}", headers=headers)
 
     assert response.status_code == 204, response.text
-    assert db_session.query(Scan).filter(Scan.id == scan.id).count() == 0
-    assert db_session.query(Evidence).filter(Evidence.id == evidence.id).count() == 0
+    assert db_session.query(Scan).filter(Scan.id == scan_id).count() == 0
+    assert db_session.query(Evidence).filter(Evidence.id == evidence_id).count() == 0
     assert object_key not in storage.objects
 
 
@@ -97,14 +98,15 @@ def test_asset_delete_cleans_all_scan_evidence_before_cascade(
     target, asset, scan, evidence, object_key, payload = _create_chain(
         db_session, user.tenant_id
     )
+    asset_id, scan_id, evidence_id = asset.id, scan.id, evidence.id
     storage = _patch_storage(monkeypatch, object_key, payload)
 
-    response = client.delete(f"/api/v1/assets/{asset.id}", headers=headers)
+    response = client.delete(f"/api/v1/assets/{asset_id}", headers=headers)
 
     assert response.status_code == 204, response.text
-    assert db_session.query(Asset).filter(Asset.id == asset.id).count() == 0
-    assert db_session.query(Scan).filter(Scan.id == scan.id).count() == 0
-    assert db_session.query(Evidence).filter(Evidence.id == evidence.id).count() == 0
+    assert db_session.query(Asset).filter(Asset.id == asset_id).count() == 0
+    assert db_session.query(Scan).filter(Scan.id == scan_id).count() == 0
+    assert db_session.query(Evidence).filter(Evidence.id == evidence_id).count() == 0
     assert object_key not in storage.objects
 
 
@@ -115,15 +117,16 @@ def test_target_delete_cleans_all_descendant_evidence_before_cascade(
     target, asset, scan, evidence, object_key, payload = _create_chain(
         db_session, user.tenant_id
     )
+    target_id, asset_id, scan_id, evidence_id = target.id, asset.id, scan.id, evidence.id
     storage = _patch_storage(monkeypatch, object_key, payload)
 
-    response = client.delete(f"/api/v1/targets/{target.id}", headers=headers)
+    response = client.delete(f"/api/v1/targets/{target_id}", headers=headers)
 
     assert response.status_code == 204, response.text
-    assert db_session.query(Target).filter(Target.id == target.id).count() == 0
-    assert db_session.query(Asset).filter(Asset.id == asset.id).count() == 0
-    assert db_session.query(Scan).filter(Scan.id == scan.id).count() == 0
-    assert db_session.query(Evidence).filter(Evidence.id == evidence.id).count() == 0
+    assert db_session.query(Target).filter(Target.id == target_id).count() == 0
+    assert db_session.query(Asset).filter(Asset.id == asset_id).count() == 0
+    assert db_session.query(Scan).filter(Scan.id == scan_id).count() == 0
+    assert db_session.query(Evidence).filter(Evidence.id == evidence_id).count() == 0
     assert object_key not in storage.objects
 
 
@@ -134,20 +137,21 @@ def test_parent_delete_stays_pending_when_evidence_storage_delete_fails(
     target, asset, scan, evidence, object_key, payload = _create_chain(
         db_session, user.tenant_id
     )
+    scan_id, evidence_id = scan.id, evidence.id
     storage = _patch_storage(monkeypatch, object_key, payload)
     storage.fail_delete = True
 
-    response = client.delete(f"/api/v1/scans/{scan.id}", headers=headers)
+    response = client.delete(f"/api/v1/scans/{scan_id}", headers=headers)
 
     assert response.status_code == 503
-    assert db_session.query(Scan).filter(Scan.id == scan.id).count() == 1
-    pending = db_session.query(Evidence).filter(Evidence.id == evidence.id).one()
+    assert db_session.query(Scan).filter(Scan.id == scan_id).count() == 1
+    pending = db_session.query(Evidence).filter(Evidence.id == evidence_id).one()
     assert pending.deletion_status == "PENDING_DELETE"
     assert object_key in storage.objects
 
     storage.fail_delete = False
-    retry = client.delete(f"/api/v1/scans/{scan.id}", headers=headers)
+    retry = client.delete(f"/api/v1/scans/{scan_id}", headers=headers)
     assert retry.status_code == 204, retry.text
-    assert db_session.query(Scan).filter(Scan.id == scan.id).count() == 0
-    assert db_session.query(Evidence).filter(Evidence.id == evidence.id).count() == 0
+    assert db_session.query(Scan).filter(Scan.id == scan_id).count() == 0
+    assert db_session.query(Evidence).filter(Evidence.id == evidence_id).count() == 0
     assert object_key not in storage.objects
