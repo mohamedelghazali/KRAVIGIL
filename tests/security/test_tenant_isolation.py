@@ -2,7 +2,6 @@ import uuid
 
 from backend.core.security import security_service
 from backend.core import audit_service
-from backend.database.models.target import Target
 from backend.database.models.user import Organization, User
 from tests.conftest import TestingSessionLocal
 
