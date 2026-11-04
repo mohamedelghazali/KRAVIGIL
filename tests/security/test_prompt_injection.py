@@ -32,10 +32,10 @@ def test_html_encoded_script_and_prompt_injection_are_removed():
     "secret",
     [
         "Authorization: Bearer abc.def.ghi",
-        "AKIA1234567890ABCDEF",
-        "AIza123456789012345678901234567890123456",
-        "ghp_123456789012345678901234567890123456",
-        "sk-123456789012345678901234567890",
+        "AKIA" + ("A" * 16),
+        "AIza" + ("B" * 35),
+        "ghp_" + ("x" * 40),
+        "sk-" + ("y" * 30),
         "-----BEGIN PRIVATE KEY-----secret-material-----END PRIVATE KEY-----",
     ],
 )
@@ -57,6 +57,9 @@ def test_data_policy_recursively_rejects_sensitive_fields():
     assert guard.validate_data_policy({"title": "SQL injection", "severity": "high"})
     assert not guard.validate_data_policy({"metadata": [{"client-secret": "leak"}]})
     assert not guard.validate_data_policy({"nested": {"apiKey": "leak"}})
+    assert not guard.validate_data_policy(
+        {"description": "Captured Authorization: Bearer " + ("x" * 40)}
+    )
     assert not guard.validate_data_policy(["not", "an", "object"])
 
 
