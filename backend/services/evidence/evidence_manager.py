@@ -108,8 +108,13 @@ class EvidenceManager:
                 deleted += 1
             except ValueError:
                 # Another idempotent deletion may have completed after the
-                # identifier list was read. Missing rows need no storage work.
-                continue
+                # identifier list was read. Ignore only a genuinely missing row.
+                still_exists = db.query(Evidence.id).filter(
+                    Evidence.id == evidence_id,
+                    Evidence.tenant_id == tenant_uuid,
+                ).first()
+                if still_exists is not None:
+                    raise
         return deleted
 
     def delete_evidence(self, evidence_id: uuid.UUID, tenant_id: uuid.UUID) -> None:
