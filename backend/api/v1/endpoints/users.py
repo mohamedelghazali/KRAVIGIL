@@ -1,18 +1,20 @@
+import logging
 import uuid
 from datetime import datetime
-import logging
+from typing import List
+
 import pyotp
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from typing import List
-from backend.database.models.user import User
-from backend.database.models.session import UserSession
-from backend.database.tenant import get_tenant_db
-from backend.core.security import get_current_user, require_role, security_service
-from backend.core.exceptions import KravigilException
-from backend.core.audit_service import AuditService
-from backend.schemas.user import UserCreate, UserRead as UserResponse, UserRoleUpdate
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from backend.core.audit_service import AuditService
+from backend.core.exceptions import KravigilException
+from backend.core.security import get_current_user, require_role, security_service
+from backend.database.models.session import UserSession
+from backend.database.models.user import User
+from backend.database.tenant import get_tenant_db
+from backend.schemas.user import UserCreate, UserRead as UserResponse, UserRoleUpdate
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
