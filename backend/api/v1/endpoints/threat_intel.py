@@ -31,7 +31,7 @@ def list_indicators(
     current_user: User = Depends(require_role(["admin", "analyst"])),
     db: Session = Depends(get_tenant_db)
 ):
-    query = db.query(ThreatIndicator)
+    query = db.query(ThreatIndicator).filter(ThreatIndicator.tenant_id == current_user.tenant_id)
     if ioc_type:
         query = query.filter(ThreatIndicator.indicator_type == ioc_type)
     return query.order_by(ThreatIndicator.created_at.desc()).offset(skip).limit(limit).all()
