@@ -128,6 +128,13 @@ A green CI run is necessary but not sufficient. Reassess this document after eve
 - PR #21 de-scoped six AI intelligence, four SecureBERT, and one local provider scaffold; CI `41848045943`, security `41848045862`, and image verification `41848045909` passed.
 - PR #22 de-scoped six unused Python web scanner modules; CI `41848281735`, security `41848281634`, and three images `41848281789` passed.
 - PR #23 removed unused `backend/services/reporting/minio_storage.py`; no workflow runs were returned. This does not close the production storage provider blocker.
-- Inventory: **19 implemented**, **54 safely de-scoped**, **14 open** (three backend security modules, five AI security modules, worker scope guard, and five integration/performance/regression/security tests).
+- Inventory: **21 implemented**, **54 safely de-scoped**, **12 open** (three backend security modules, five AI security modules, worker scope guard, one performance test, one regression test, and one prompt-injection test).
 - Main SHA: `b1e9c25fb84b509e3a93cc0bc23959cd08986ee3`.
 - Production remains **NO-GO** due to the 14 open inventory items, unresolved production storage provider, and unexecuted production/restore acceptance.
+
+
+## Reporting fix and CI test coverage — 2026-11-04
+
+- PR #24 fixed report generation's invalid `Finding.scan_id` lookup by joining findings through tenant-scoped observations. It added report extraction/PDF orchestration tests. PR #24 CI `41849313111`, security `41849313667`, and all three images `41849313242` passed; note that integration tests were not included in that CI command.
+- PR #25 expands the CI backend command to run unit, integration, regression, and security tests, repairs the network scan pipeline integration test, and adds scan tenant/port/cloud-provider tests. Its integration/backend tests and image workflow are still running; Ruff/MyPy, frontend, C++, and Gitleaks have passed.
+- Inventory: 21 implemented, 54 safely de-scoped, 12 open. Production remains **NO-GO** pending the final security workstream, performance/regression tests, storage provider acceptance, and production/restore validation.
