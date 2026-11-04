@@ -59,6 +59,8 @@ def test_data_policy_recursively_rejects_sensitive_fields():
     assert not guard.validate_data_policy({"nested": {"apiKey": "leak"}})
     assert not guard.validate_data_policy({"clientSecret": "leak"})
     assert not guard.validate_data_policy({"awsSecretAccessKey": "leak"})
+    assert not guard.validate_data_policy({"AWSSecretAccessKey": "leak"})
+    assert not guard.validate_data_policy({"AWSAccessKeyID": "leak"})
     assert not guard.validate_data_policy({"refreshToken": "leak"})
     assert not guard.validate_data_policy(
         {"description": "Captured Authorization: Bearer " + ("x" * 40)}
