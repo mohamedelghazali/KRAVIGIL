@@ -146,6 +146,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+    - name: Validate production Compose and deployment scripts
+      run: |
+        for script in scripts/deploy_prod.sh infrastructure/minio/mc_network.sh infrastructure/minio/replicate.sh infrastructure/minio/verify_replication.sh; do
+          bash -n "$script"
+        done
+        docker compose --env-file .env.example -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.prod.yml -f infrastructure/docker-compose.backup.yml config --quiet
     - name: Build backend image
       run: docker build -f backend/Dockerfile -t kravigil-backend:ci .
     - name: Build network engine image
