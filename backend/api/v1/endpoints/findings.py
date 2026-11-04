@@ -7,30 +7,12 @@ from backend.database.tenant import get_tenant_db
 from backend.core.security import get_current_user, require_permission
 from backend.security.rbac import Permission
 from backend.core.audit_service import AuditService
-from pydantic import BaseModel
 import uuid
-from datetime import datetime
+
+from backend.schemas.finding import FindingRead as FindingResponse
+from backend.schemas.finding import FindingUpdate
 
 router = APIRouter()
-
-class FindingResponse(BaseModel):
-    id: uuid.UUID
-    title: str
-    vulnerability_key: str
-    severity: str
-    confidence: str
-    validation_status: str
-    workflow_status: str
-    first_seen: datetime
-    last_seen: datetime
-
-    class Config:
-        from_attributes = True
-
-class FindingUpdate(BaseModel):
-    workflow_status: str | None = None
-    validation_status: str | None = None
-    disposition: str | None = None
 
 @router.get("/", response_model=List[FindingResponse])
 def list_findings(
