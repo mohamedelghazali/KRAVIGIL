@@ -74,3 +74,19 @@ Both code fixes are now merged in PR #35. **A fresh complete run on the post-PR-
 Do not declare the project production-ready or expose it to public users until one exact candidate SHA passes all required CI, security, Compose and three-image gates, and every production acceptance item above has verifiable evidence.
 
 The current deployment script deliberately fails until a real remote HTTPS replication endpoint and credentials are configured. No production deployment has been performed from this review.
+
+
+## Final audit addendum — 2026-11-04 (post-agent integration)
+
+- Candidate main commit: `2e59356abefe097f46c59486e616d8d54d9535bb` (merge of PR #50).
+- PR #49 is merged: agent API requests now use RSA-SHA256 signatures over method, path/query, timestamp and body digest; the server uses a dedicated agent authentication dependency, checks agent/task ownership and revocation, and the agent persists its identity keypair.
+- PR #50 is merged: the runner supplies the administrator enrollment token, remote control-plane traffic is required to use HTTPS, and agent transport/security operations are documented.
+- The historical CI run `41872226592` is not evidence for the current main candidate. It completed with 138 passed and one telemetry test failure caused by an overly strict assertion that expected exactly one shutdown callback.
+- The current `main` version of `tests/unit/test_telemetry.py` has since been corrected to assert that the provider shutdown callback is present and callable, without assuming it is the only callback.
+- The later full CI run `41872358651` passed backend tests, C++ build/tests, frontend build, and lint/type checks, but its container-build job was cancelled. It predates the PR #49/#50 integration and therefore does not certify this candidate.
+- Security scan run `41872358440` passed Python security and secret scanning, but it also predates the PR #49/#50 integration. The prior three-image run `41872358536` returned no job records in the available audit interface; treat it as unverified, not passed.
+- Required next action: obtain fresh CI, security-scan, and image-build results against the exact post-PR-50 candidate. No production certification is granted by this addendum.
+
+### Current release decision
+
+**NO-GO — pending exact-candidate CI/security/image validation and the production acceptance gates above.**
