@@ -125,11 +125,11 @@ services:
       - KRAVIGIL_ENGINE_AUTH_TOKEN=${KRAVIGIL_ENGINE_AUTH_TOKEN:?KRAVIGIL_ENGINE_AUTH_TOKEN must be set}
       - KRAVIGIL_TLS_CA=/run/secrets/network-engine-ca.crt
       - KRAVIGIL_TLS_CLIENT_CERT=/run/secrets/backend-client.crt
-      - KRAVIGIL_TLS_CLIENT_KEY=/run/secrets/kravigil-client.key
+      - KRAVIGIL_TLS_CLIENT_KEY=/run/secrets/backend-client.key
     volumes:
       - ./certs/network-engine/ca.crt:/run/secrets/network-engine-ca.crt:ro
-      - ./certs/network-engine/client.crt:/run/secrets/kravigil-client.crt:ro
-      - ./certs/network-engine/client.key:/run/secrets/kravigil-client.key:ro
+      - ./certs/network-engine/backend-client.crt:/run/secrets/backend-client.crt:ro
+      - ./certs/network-engine/backend-client.key:/run/secrets/backend-client.key:ro
     depends_on:
       db:
         condition: service_healthy
@@ -175,11 +175,11 @@ services:
       - KRAVIGIL_ENGINE_AUTH_TOKEN=${KRAVIGIL_ENGINE_AUTH_TOKEN:?KRAVIGIL_ENGINE_AUTH_TOKEN must be set}
       - KRAVIGIL_TLS_CA=/run/secrets/network-engine-ca.crt
       - KRAVIGIL_TLS_CLIENT_CERT=/run/secrets/worker-client.crt
-      - KRAVIGIL_TLS_CLIENT_KEY=/run/secrets/kravigil-client.key
+      - KRAVIGIL_TLS_CLIENT_KEY=/run/secrets/worker-client.key
     volumes:
       - ./certs/network-engine/ca.crt:/run/secrets/network-engine-ca.crt:ro
-      - ./certs/network-engine/client.crt:/run/secrets/kravigil-client.crt:ro
-      - ./certs/network-engine/client.key:/run/secrets/kravigil-client.key:ro
+      - ./certs/network-engine/worker-client.crt:/run/secrets/worker-client.crt:ro
+      - ./certs/network-engine/worker-client.key:/run/secrets/worker-client.key:ro
       - ../workspace:/workspace:ro
       - ${GOOGLE_APPLICATION_CREDENTIALS_HOST_PATH:-/dev/null}:/run/secrets/gcp-credentials.json:ro
     depends_on:
