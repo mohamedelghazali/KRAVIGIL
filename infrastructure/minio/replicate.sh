@@ -19,12 +19,19 @@ run_mc /bin/sh -ec '
     mc version enable "source/$BUCKET"
     mc version enable "target/$BUCKET"
     if ! mc replicate ls "source/$BUCKET" | grep -q "target/$BUCKET"; then
-      # Never propagate source deletes to the recovery target: a compromised
-      # source credential must not erase the off-host recovery copy.
+      if [[ "$BUCKET" == "$BACKUP_BUCKET" ]]; then
+        # Preserve backup versions on the recovery target even if the source
+        # bucket or its credentials are compromised.
+        REPLICATION_FLAGS="existing-objects"
+      else
+        # Evidence deletions must propagate to the replica; provider-side
+        # retention/Object Lock must still protect versions during the policy window.
+        REPLICATION_FLAGS="delete,delete-marker,existing-objects"
+      fi
       mc replicate add "source/$BUCKET" \
         --remote-bucket "target/$BUCKET" \
         --priority 1 \
-        --replicate "existing-objects"
+        --replicate "$REPLICATION_FLAGS"
     fi
     mc replicate status "source/$BUCKET"
   done
