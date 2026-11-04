@@ -35,24 +35,58 @@ Cloud scans use the pinned Prowler CLI. Configure AWS credentials (or an appropr
 
 ## 2. Configure the network engine TLS identity
 
-The C++ gRPC server requires a TLS certificate, private key and shared authentication token. The worker verifies the server certificate using the CA file.
+The C++ gRPC transport requires **mutual TLS (mTLS)** as well as the per-request engine token. The engine verifies client certificates against the internal CA; backend and worker verify the engine server certificate and present their own client certificates. The server certificate must identify the Compose DNS name `network_engine`.
 
-Create a self-signed certificate for the internal Compose DNS name (or use a certificate signed by your internal CA):
+Generate a private CA, a server certificate, and a separate client certificate. Keep the CA private key offline and never mount it into containers:
 
 ```bash
-mkdir -p infrastructure/certs/network-engine
+set -euo pipefail
+umask 077
+CERT_DIR=infrastructure/certs/network-engine
+mkdir -p "$CERT_DIR"
+
+# Internal CA (keep ca.key offline after signing).
 openssl req -x509 -newkey rsa:3072 -nodes \
-  -keyout infrastructure/certs/network-engine/server.key \
-  -out infrastructure/certs/network-engine/server.crt \
-  -days 365 -subj "/CN=network_engine" \
+  -keyout "$CERT_DIR/ca.key" -out "$CERT_DIR/ca.crt" -days 3650 \
+  -subj "/CN=KRAVIGIL Internal Engine CA" \
+  -addext "basicConstraints=critical,CA:TRUE" \
+  -addext "keyUsage=critical,keyCertSign,cRLSign"
+
+# Server identity: the SAN is required for hostname verification.
+openssl req -newkey rsa:3072 -nodes \
+  -keyout "$CERT_DIR/server.key" -out "$CERT_DIR/server.csr" \
+  -subj "/CN=network_engine" \
   -addext "subjectAltName=DNS:network_engine"
-cp infrastructure/certs/network-engine/server.crt infrastructure/certs/network-engine/ca.crt
-sudo chown 10001:10001 infrastructure/certs/network-engine/server.key
-sudo chmod 0440 infrastructure/certs/network-engine/server.key
-chmod 0444 infrastructure/certs/network-engine/server.crt infrastructure/certs/network-engine/ca.crt
+printf 'subjectAltName=DNS:network_engine\nextendedKeyUsage=serverAuth\nkeyUsage=critical,digitalSignature,keyEncipherment\n' > "$CERT_DIR/server.ext"
+openssl x509 -req -in "$CERT_DIR/server.csr" -CA "$CERT_DIR/ca.crt" \
+  -CAkey "$CERT_DIR/ca.key" -CAcreateserial -out "$CERT_DIR/server.crt" \
+  -days 825 -sha256 -copy_extensions copy -extfile "$CERT_DIR/server.ext"
+
+# Separate client identities let operators revoke backend and worker access independently.
+for identity in backend worker; do
+  openssl req -newkey rsa:3072 -nodes \
+    -keyout "$CERT_DIR/$identity-client.key" \
+    -out "$CERT_DIR/$identity-client.csr" \
+    -subj "/CN=kravigil-$identity"
+  printf 'extendedKeyUsage=clientAuth\nkeyUsage=critical,digitalSignature\n' > "$CERT_DIR/$identity-client.ext"
+  openssl x509 -req -in "$CERT_DIR/$identity-client.csr" -CA "$CERT_DIR/ca.crt" \
+    -CAkey "$CERT_DIR/ca.key" -CAcreateserial -out "$CERT_DIR/$identity-client.crt" \
+    -days 825 -sha256 -copy_extensions copy -extfile "$CERT_DIR/$identity-client.ext"
+done
+
+# Verify the chains before the deployment script does its own checks.
+openssl verify -purpose sslserver -CAfile "$CERT_DIR/ca.crt" "$CERT_DIR/server.crt"
+for identity in backend worker; do
+  openssl verify -purpose sslclient -CAfile "$CERT_DIR/ca.crt" "$CERT_DIR/$identity-client.crt"
+done
+sudo chown 10001:10001 "$CERT_DIR/server.key" "$CERT_DIR/backend-client.key" "$CERT_DIR/worker-client.key"
+sudo chmod 0440 "$CERT_DIR/server.key" "$CERT_DIR/backend-client.key" "$CERT_DIR/worker-client.key"
+chmod 0444 "$CERT_DIR/server.crt" "$CERT_DIR/backend-client.crt" "$CERT_DIR/worker-client.crt" "$CERT_DIR/ca.crt"
+rm -f "$CERT_DIR"/*.csr "$CERT_DIR"/*.ext "$CERT_DIR"/*.srl
+# Securely archive the CA private key offline, then remove it from the host.
 ```
 
-The certificate must include `DNS:network_engine` in its subject alternative names. The server key is mounted read-only and is readable by the dedicated container UID 10001. These files are excluded from Git.
+The required runtime files are `ca.crt`, `server.crt`, `server.key`, `backend-client.crt`, `backend-client.key`, `worker-client.crt`, and `worker-client.key`. The CA private key must not remain on the production host. All certificate/key files are excluded from Git. Backend and worker receive distinct client keys read-only; the network engine receives the CA and server key read-only. Rotate or revoke each client identity independently by issuing a new certificate from the trusted CA and restarting the affected service.
 
 Create authorized SAST source directories under `workspace/`. The worker mounts this directory read-only and rejects paths outside `/workspace`.
 

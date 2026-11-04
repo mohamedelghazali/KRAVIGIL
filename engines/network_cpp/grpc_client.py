@@ -17,21 +17,38 @@ class NetworkEngineClient:
         port: int = 50051,
         authorization_id: Optional[str] = None,
         root_cert_path: Optional[str] = None,
+        client_cert_path: Optional[str] = None,
+        client_key_path: Optional[str] = None,
     ) -> None:
         token = authorization_id or os.getenv("KRAVIGIL_ENGINE_AUTH_TOKEN")
         cert_path = root_cert_path or os.getenv("KRAVIGIL_TLS_CA")
+        client_certificate_path = client_cert_path or os.getenv("KRAVIGIL_TLS_CLIENT_CERT")
+        client_private_key_path = client_key_path or os.getenv("KRAVIGIL_TLS_CLIENT_KEY")
 
         if not token:
             raise ValueError("KRAVIGIL_ENGINE_AUTH_TOKEN is required")
         if not cert_path:
             raise ValueError("KRAVIGIL_TLS_CA is required")
+        if not client_certificate_path:
+            raise ValueError("KRAVIGIL_TLS_CLIENT_CERT is required for mutual TLS")
+        if not client_private_key_path:
+            raise ValueError("KRAVIGIL_TLS_CLIENT_KEY is required for mutual TLS")
 
         cert_file = Path(cert_path)
-        if not cert_file.is_file():
-            raise FileNotFoundError(f"TLS CA certificate not found: {cert_file}")
+        client_cert_file = Path(client_certificate_path)
+        client_key_file = Path(client_private_key_path)
+        for label, path in (
+            ("TLS CA certificate", cert_file),
+            ("TLS client certificate", client_cert_file),
+            ("TLS client private key", client_key_file),
+        ):
+            if not path.is_file():
+                raise FileNotFoundError(f"{label} not found: {path}")
 
         credentials = grpc.ssl_channel_credentials(
-            root_certificates=cert_file.read_bytes()
+            root_certificates=cert_file.read_bytes(),
+            private_key=client_key_file.read_bytes(),
+            certificate_chain=client_cert_file.read_bytes(),
         )
         self.authorization_id = token
         self.channel = grpc.secure_channel(
