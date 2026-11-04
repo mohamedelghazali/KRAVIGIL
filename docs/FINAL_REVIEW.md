@@ -124,8 +124,8 @@ A green CI run is necessary but not sufficient. Reassess this document after eve
 ## PRs #19–#23 closure update — 2026-11-04
 
 - PR #19 de-scoped seven duplicate worker modules; CI `41847449483`, security `41847449383`, and all three images `41847449311` passed.
-- PR #20 de-scoped three unused AI gateway modules; CI `41848045943`, security `41848045862`, and images `41848045909` passed.
-- PR #21 de-scoped six AI intelligence, four SecureBERT, and one local provider scaffold; CI `41848281735` and security `41848281634` passed; image verification run `41848045909` completed successfully for the same AI cleanup wave.
+- PR #20 de-scoped three unused AI gateway modules; CI `41847616541`, security `41847616553`, and images `41847616513` passed.
+- PR #21 de-scoped six AI intelligence, four SecureBERT, and one local provider scaffold; CI `41848045943`, security `41848045862`, and image verification `41848045909` passed.
 - PR #22 de-scoped six unused Python web scanner modules; CI `41848281735`, security `41848281634`, and three images `41848281789` passed.
 - PR #23 removed unused `backend/services/reporting/minio_storage.py`; no workflow runs were returned. This does not close the production storage provider blocker.
 - Inventory: **19 implemented**, **54 safely de-scoped**, **14 open** (three backend security modules, five AI security modules, worker scope guard, and five integration/performance/regression/security tests).
