@@ -118,6 +118,8 @@ def login_mfa(request: Request, mfa_in: MFAVerifyRequest, db: Session = Depends(
     user = db.query(User).filter(User.id == payload.get("sub")).first()
     if not user or not user.is_mfa_enabled:
         raise HTTPException(status_code=401, detail="Invalid MFA state")
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="User account is disabled")
     _set_tenant_context(db, user.tenant_id)
 
     if not security_service.verify_mfa_token(user.mfa_secret, mfa_in.mfa_token):
