@@ -94,8 +94,8 @@ Each batch must include caller compatibility, negative/boundary tests, and a ref
 - Current main SHA after documentation reconciliation: `ca3fe5cfeccf194d07b3a1f460320ce1bc1ec442`.
 
 - PR #19 merged worker scaffold de-scope; CI `41847449483`, security `41847449383`, and three-image run `41847449311` all passed.
-- PR #20 merged AI gateway scaffold de-scope; CI `41848045943`, security `41848045862`, and three-image run `41848045909` all passed.
-- PR #21 merged unused SecureBERT/intelligence/local-provider scaffold de-scope; CI `41848281735`, security `41848281634`, and three-image run `41848045909` passed for the adjacent AI batch; verify same-head evidence before final release gate.
-- PR #22 merged unused Python web scanner scaffold de-scope; CI `41848281735`, security `41848281634`, and three-image run `41848281789` passed.
+- PR #20 merged AI gateway scaffold de-scope; CI `41847616541`, security `41847616553`, and three-image run `41847616513` all passed.
+- PR #21 merged unused SecureBERT/intelligence/local-provider scaffold de-scope; CI `41848045943`, security `41848045862`, and three-image run `41848045909` all passed.
+- PR #22 merged unused Python web scanner scaffold de-scope; CI `41848281735`, security `41848281634`, and three-image run `41848281789` all passed.
 - PR #23 merged unused reporting storage scaffold removal as `b1e9c25fb84b509e3a93cc0bc23959cd08986ee3`; no workflow runs were returned. It does not resolve production storage provider selection.
 - Current inventory: 19 implemented, 54 de-scoped, 14 open. Main SHA: `b1e9c25fb84b509e3a93cc0bc23959cd08986ee3`.
