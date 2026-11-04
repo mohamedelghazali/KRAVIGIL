@@ -87,6 +87,7 @@ def test_restore_verifies_checksum_and_uses_isolated_single_transaction(
     )
     assert "--single-transaction" in restore_command
     assert "--exit-on-error" in restore_command
+    assert "--no-password" in restore_command
     assert restore_command[restore_command.index("--dbname") + 1] == "kravigil_recovery_test"
     assert restore_kwargs["env"]["PGPASSWORD"] == "restore-password"
     assert "--passphrase-file" in gpg_command
