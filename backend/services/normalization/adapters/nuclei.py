@@ -1,7 +1,7 @@
 import ipaddress
 import json
 import logging
-from typing import List, Dict, Any, Optional
+from typing import Callable, List, Dict, Any, Optional
 from urllib.parse import urlsplit, urlunsplit
 
 from backend.services.normalization.adapters.base import BaseEngineAdapter
@@ -18,6 +18,7 @@ class NucleiAdapter(BaseEngineAdapter):
         target_url: str,
         templates: str = "cves,vulnerabilities",
         pinned_ip: Optional[str] = None,
+        should_cancel: Optional[Callable[[], bool]] = None,
     ) -> List[Dict[str, Any]]:
         args = [
             "-u", target_url,
@@ -50,7 +51,7 @@ class NucleiAdapter(BaseEngineAdapter):
             if parsed.scheme.lower() == "https" and not _is_ip(hostname):
                 args.extend(["-sni", hostname])
 
-        raw_output = self.execute(args)
+        raw_output = self.execute(args, should_cancel=should_cancel)
         return self.parse_output(raw_output)
 
     def parse_output(self, raw_output: str) -> List[Dict[str, Any]]:

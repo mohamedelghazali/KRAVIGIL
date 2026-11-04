@@ -9,6 +9,7 @@ from engines.network_cpp.grpc_client import NetworkEngineClient
 from backend.database.session import SessionLocal
 from backend.services.normalization.normalizer import Normalizer
 from backend.services.normalization.adapters.nuclei import NucleiAdapter
+from backend.services.normalization.adapters.base import ScanCancelledError
 from backend.services.normalization.adapters.semgrep import SemgrepAdapter
 from backend.services.normalization.adapters.gitleaks import GitleaksAdapter
 from backend.services.normalization.adapters.trivy import TrivyAdapter
@@ -36,6 +37,98 @@ def set_worker_tenant(db, tenant_id) -> None:
             text("SELECT set_config('app.tenant_id', :tenant_id, false)"),
             {"tenant_id": str(tenant_id)},
         )
+
+
+
+def _claim_scan(db, tenant_id, scan_id, task_id):
+    """Atomically claim a pending scan without overwriting a cancellation."""
+    query = db.query(Scan).filter(
+        Scan.id == scan_id,
+        Scan.tenant_id == tenant_id,
+        Scan.status == "PENDING",
+    )
+    values = {
+        Scan.status: "RUNNING",
+        Scan.started_at: datetime.utcnow(),
+    }
+    if task_id:
+        values[Scan.task_id] = task_id
+    claimed = query.update(values, synchronize_session=False)
+    if claimed == 1:
+        db.commit()
+        return "RUNNING"
+
+    db.rollback()
+    scan = db.query(Scan).filter(
+        Scan.id == scan_id,
+        Scan.tenant_id == tenant_id,
+    ).first()
+    if scan is None:
+        return "MISSING"
+    if scan.status == "RUNNING" and scan.task_id in (None, task_id):
+        if scan.task_id is None and task_id:
+            scan.task_id = task_id
+            db.commit()
+        return "RUNNING"
+    if scan.status == "PENDING":
+        raise RuntimeError("Could not atomically claim pending scan")
+    if scan.status == "RUNNING":
+        return "BUSY"
+    return scan.status
+
+
+def _complete_scan_if_running(db, tenant_id, scan_id) -> bool:
+    """Commit pending observations only if cancellation has not won the race."""
+    completed = db.query(Scan).filter(
+        Scan.id == scan_id,
+        Scan.tenant_id == tenant_id,
+        Scan.status == "RUNNING",
+    ).update(
+        {
+            Scan.status: "COMPLETED",
+            Scan.finished_at: datetime.utcnow(),
+        },
+        synchronize_session=False,
+    )
+    if completed == 1:
+        db.commit()
+        return True
+    db.rollback()
+    return False
+
+
+def _mark_scan_failed(db, tenant_id, scan_id, error) -> bool:
+    """Never replace CANCELLED or a terminal state with FAILED."""
+    db.rollback()
+    failed = db.query(Scan).filter(
+        Scan.id == scan_id,
+        Scan.tenant_id == tenant_id,
+        Scan.status.in_(["PENDING", "RUNNING"]),
+    ).update(
+        {
+            Scan.status: "FAILED",
+            Scan.error_message: str(error)[:2048],
+            Scan.finished_at: datetime.utcnow(),
+        },
+        synchronize_session=False,
+    )
+    if failed == 1:
+        db.commit()
+        return True
+    db.rollback()
+    return False
+
+
+def _scan_status(db, tenant_id, scan_id):
+    return db.query(Scan.status).filter(
+        Scan.id == scan_id,
+        Scan.tenant_id == tenant_id,
+    ).scalar()
+
+
+def _scan_cancel_requested(db, tenant_id, scan_id) -> bool:
+    db.expire_all()
+    return _scan_status(db, tenant_id, scan_id) != "RUNNING"
 
 
 def _close_worker_session(db) -> None:
@@ -115,50 +208,48 @@ def run_cloud_scan(self, tenant_id: str, scan_id: str, asset_id: str, provider: 
         scan_uuid = uuid.UUID(str(scan_id))
         asset_uuid = uuid.UUID(str(asset_id))
         set_worker_tenant(db, tenant_uuid)
-        scan = db.query(Scan).filter(Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid).first()
-        if not scan: raise ValueError(f"Scan {scan_id} not found")
-
-        scan.status = "RUNNING"
-        scan.started_at = datetime.utcnow()
-        db.commit()
+        scan_state = _claim_scan(db, tenant_uuid, scan_uuid, self.request.id)
+        if scan_state != "RUNNING":
+            return {"status": scan_state.lower(), "scan_id": scan_id}
 
         if provider.lower() not in {"aws", "azure", "gcp"}:
             raise ValueError("Unsupported cloud provider")
         adapter = CloudScannerAdapter()
-        results = adapter.scan(provider.lower())
+        results = adapter.scan(
+            provider.lower(),
+            should_cancel=lambda: _scan_cancel_requested(db, tenant_uuid, scan_uuid),
+        )
 
-        observations = []
-        for res in results:
-            obs = Normalizer.from_cloud_result(tenant_uuid, scan_uuid, asset_uuid, res)
-            observations.append(obs)
-
+        observations = [
+            Normalizer.from_cloud_result(tenant_uuid, scan_uuid, asset_uuid, res)
+            for res in results
+        ]
         if observations:
             db.bulk_save_objects(observations)
-            db.commit()
 
-        db.refresh(scan)
-        if scan.status == "CANCELLED":
-            return {"status": "cancelled", "scan_id": scan_id}
-        scan.status = "COMPLETED"
-        scan.finished_at = datetime.utcnow()
-        db.commit()
-        
+        if not _complete_scan_if_running(db, tenant_uuid, scan_uuid):
+            current_status = _scan_status(db, tenant_uuid, scan_uuid) or "MISSING"
+            return {"status": current_status.lower(), "scan_id": scan_id}
+
         trigger_notifications(db, tenant_id, "scan.completed", {"scan_id": scan_id, "type": "cloud"})
         correlate_findings.delay(tenant_id, scan_id, asset_id)
         return {"status": "completed", "scan_id": scan_id, "findings": len(results)}
+    except ScanCancelledError:
+        db.rollback()
+        logger.info("Cloud scan %s cancelled by request", scan_id)
+        return {"status": "cancelled", "scan_id": scan_id}
     except Exception as e:
         db.rollback()
         logger.error("Cloud scan %s failed: %s", scan_id, e, exc_info=True)
-        if "tenant_uuid" in locals() and "scan_uuid" in locals() and self.request.retries >= 3:
-            failed_scan = db.query(Scan).filter(
-                Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid
-            ).first()
-            if failed_scan is not None and failed_scan.status != "CANCELLED":
-                failed_scan.status = "FAILED"
-                failed_scan.error_message = str(e)[:2048]
-                failed_scan.finished_at = datetime.utcnow()
-                db.commit()
-            raise
+        if "tenant_uuid" in locals() and "scan_uuid" in locals():
+            current_status = _scan_status(db, tenant_uuid, scan_uuid)
+            if current_status == "CANCELLED":
+                return {"status": "cancelled", "scan_id": scan_id}
+            if current_status in {"COMPLETED", "FAILED"}:
+                raise
+            if self.request.retries >= 3:
+                _mark_scan_failed(db, tenant_uuid, scan_uuid, e)
+                raise
         raise self.retry(exc=e, countdown=60, max_retries=3)
     finally:
         _close_worker_session(db)
@@ -188,12 +279,9 @@ def run_network_scan(self, tenant_id: str, scan_id: str, asset_id: str, target_i
         scan_uuid = uuid.UUID(str(scan_id))
         asset_uuid = uuid.UUID(str(asset_id))
         set_worker_tenant(db, tenant_uuid)
-        scan = db.query(Scan).filter(Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid).first()
-        if scan is None:
-            raise ValueError("Scan not found for tenant")
-        scan.status = "RUNNING"
-        scan.started_at = datetime.utcnow()
-        db.commit()
+        scan_state = _claim_scan(db, tenant_uuid, scan_uuid, self.request.id)
+        if scan_state != "RUNNING":
+            return {"status": scan_state.lower(), "scan_id": scan_id}
 
         client_host = os.getenv("KRAVIGIL_ENGINE_HOST", "network_engine")
         with NetworkEngineClient(host=client_host) as client:
@@ -203,31 +291,30 @@ def run_network_scan(self, tenant_id: str, scan_id: str, asset_id: str, target_i
                 ports=ports,
                 timeout_ms=int(os.getenv("NETWORK_SCAN_TIMEOUT_MS", "1500")),
             ):
+                if _scan_cancel_requested(db, tenant_uuid, scan_uuid):
+                    client.cancel_scan(scan_id)
+                    raise ScanCancelledError("Network scan cancelled")
                 observation = Normalizer.from_network_event(
                     tenant_uuid, scan_uuid, asset_uuid, event
                 )
                 if observation is not None:
                     db.add(observation)
-            db.commit()
 
-        scan = db.query(Scan).filter(Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid).first()
-        db.refresh(scan)
-        if scan.status == "CANCELLED":
-            return {"status": "cancelled", "scan_id": scan_id}
-        scan.status = "COMPLETED"
-        scan.finished_at = datetime.utcnow()
-        db.commit()
+        if not _complete_scan_if_running(db, tenant_uuid, scan_uuid):
+            current_status = _scan_status(db, tenant_uuid, scan_uuid) or "MISSING"
+            return {"status": current_status.lower(), "scan_id": scan_id}
         trigger_notifications(db, tenant_id, "scan.completed", {"scan_id": scan_id, "type": "network"})
         correlate_findings.delay(tenant_id, scan_id, asset_id)
         return {"status": "completed", "scan_id": scan_id}
-    except Exception as exc:
+    except ScanCancelledError:
         db.rollback()
-        scan = db.query(Scan).filter(Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid).first()
-        if scan is not None and scan.status != "CANCELLED":
-            scan.status = "FAILED"
-            scan.error_message = str(exc)[:2048]
-            scan.finished_at = datetime.utcnow()
-            db.commit()
+        logger.info("Network scan %s cancelled by request", scan_id)
+        return {"status": "cancelled", "scan_id": scan_id}
+    except Exception as exc:
+        if "tenant_uuid" in locals() and "scan_uuid" in locals():
+            _mark_scan_failed(db, tenant_uuid, scan_uuid, exc)
+        else:
+            db.rollback()
         logger.exception("Network scan %s failed", scan_id)
         raise
     finally:
@@ -242,38 +329,37 @@ def run_web_scan(self, tenant_id: str, scan_id: str, asset_id: str, target_url: 
         scan_uuid = uuid.UUID(str(scan_id))
         asset_uuid = uuid.UUID(str(asset_id))
         set_worker_tenant(db, tenant_uuid)
-        scan = db.query(Scan).filter(Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid).first()
-        if scan is None:
-            raise ValueError("Scan not found for tenant")
-        scan.status = "RUNNING"
-        scan.started_at = datetime.utcnow()
-        db.commit()
+        scan_state = _claim_scan(db, tenant_uuid, scan_uuid, self.request.id)
+        if scan_state != "RUNNING":
+            return {"status": scan_state.lower(), "scan_id": scan_id}
 
         resolved_addresses = ScopeGuard(get_settings().ALLOWED_SCAN_CIDRS).validate_target(target_url)
-        results = NucleiAdapter().scan(target_url, pinned_ip=resolved_addresses[0])
+        results = NucleiAdapter().scan(
+            target_url,
+            pinned_ip=resolved_addresses[0],
+            should_cancel=lambda: _scan_cancel_requested(db, tenant_uuid, scan_uuid),
+        )
         observations = [
             Normalizer.from_nuclei_result(tenant_uuid, scan_uuid, asset_uuid, item)
             for item in results
         ]
         if observations:
             db.add_all(observations)
-        db.refresh(scan)
-        if scan.status == "CANCELLED":
-            return {"status": "cancelled", "scan_id": scan_id}
-        scan.status = "COMPLETED"
-        scan.finished_at = datetime.utcnow()
-        db.commit()
+        if not _complete_scan_if_running(db, tenant_uuid, scan_uuid):
+            current_status = _scan_status(db, tenant_uuid, scan_uuid) or "MISSING"
+            return {"status": current_status.lower(), "scan_id": scan_id}
         trigger_notifications(db, tenant_id, "scan.completed", {"scan_id": scan_id, "type": "web"})
         correlate_findings.delay(tenant_id, scan_id, asset_id)
         return {"status": "completed", "scan_id": scan_id, "findings": len(results)}
-    except Exception as exc:
+    except ScanCancelledError:
         db.rollback()
-        scan = db.query(Scan).filter(Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid).first()
-        if scan is not None and scan.status != "CANCELLED":
-            scan.status = "FAILED"
-            scan.error_message = str(exc)[:2048]
-            scan.finished_at = datetime.utcnow()
-            db.commit()
+        logger.info("Web scan %s cancelled by request", scan_id)
+        return {"status": "cancelled", "scan_id": scan_id}
+    except Exception as exc:
+        if "tenant_uuid" in locals() and "scan_uuid" in locals():
+            _mark_scan_failed(db, tenant_uuid, scan_uuid, exc)
+        else:
+            db.rollback()
         logger.exception("Web scan %s failed", scan_id)
         raise
     finally:
@@ -288,20 +374,20 @@ def run_sast_scan(self, tenant_id: str, scan_id: str, asset_id: str, code_path: 
         scan_uuid = uuid.UUID(str(scan_id))
         asset_uuid = uuid.UUID(str(asset_id))
         set_worker_tenant(db, tenant_uuid)
-        scan = db.query(Scan).filter(Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid).first()
-        if scan is None:
-            raise ValueError("Scan not found for tenant")
         workspace_root = Path(os.getenv("SAST_WORKSPACE_ROOT", "/workspace")).resolve(strict=True)
         source_path = Path(code_path).resolve(strict=True)
         if not source_path.is_relative_to(workspace_root):
             raise ValueError("SAST code_path must be inside the mounted workspace")
         if not source_path.is_dir():
             raise ValueError("SAST code_path must be an existing directory")
-        scan.status = "RUNNING"
-        scan.started_at = datetime.utcnow()
-        db.commit()
+        scan_state = _claim_scan(db, tenant_uuid, scan_uuid, self.request.id)
+        if scan_state != "RUNNING":
+            return {"status": scan_state.lower(), "scan_id": scan_id}
 
-        results = SemgrepAdapter().scan(str(source_path))
+        results = SemgrepAdapter().scan(
+            str(source_path),
+            should_cancel=lambda: _scan_cancel_requested(db, tenant_uuid, scan_uuid),
+        )
         observations = []
         for item in results:
             observations.append(Observation(
@@ -315,23 +401,21 @@ def run_sast_scan(self, tenant_id: str, scan_id: str, asset_id: str, code_path: 
             ))
         if observations:
             db.add_all(observations)
-        db.refresh(scan)
-        if scan.status == "CANCELLED":
-            return {"status": "cancelled", "scan_id": scan_id}
-        scan.status = "COMPLETED"
-        scan.finished_at = datetime.utcnow()
-        db.commit()
+        if not _complete_scan_if_running(db, tenant_uuid, scan_uuid):
+            current_status = _scan_status(db, tenant_uuid, scan_uuid) or "MISSING"
+            return {"status": current_status.lower(), "scan_id": scan_id}
         trigger_notifications(db, tenant_id, "scan.completed", {"scan_id": scan_id, "type": "sast"})
         correlate_findings.delay(tenant_id, scan_id, asset_id)
         return {"status": "completed", "scan_id": scan_id, "findings": len(results)}
-    except Exception as exc:
+    except ScanCancelledError:
         db.rollback()
-        scan = db.query(Scan).filter(Scan.id == scan_uuid, Scan.tenant_id == tenant_uuid).first()
-        if scan is not None and scan.status != "CANCELLED":
-            scan.status = "FAILED"
-            scan.error_message = str(exc)[:2048]
-            scan.finished_at = datetime.utcnow()
-            db.commit()
+        logger.info("SAST scan %s cancelled by request", scan_id)
+        return {"status": "cancelled", "scan_id": scan_id}
+    except Exception as exc:
+        if "tenant_uuid" in locals() and "scan_uuid" in locals():
+            _mark_scan_failed(db, tenant_uuid, scan_uuid, exc)
+        else:
+            db.rollback()
         logger.exception("SAST scan %s failed", scan_id)
         raise
     finally:
