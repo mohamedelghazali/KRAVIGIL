@@ -16,6 +16,9 @@ from backend.services.normalization.adapters.trivy import TrivyAdapter
 from backend.services.normalization.adapters.cloud_scanner import CloudScannerAdapter
 from backend.services.correlation.correlation_engine import CorrelationEngine
 from backend.database.models.scan import Scan
+from backend.database.models.evidence import Evidence
+from backend.database.models.user import Organization
+from backend.services.evidence.evidence_manager import EvidenceManager
 from backend.database.models.observation import Observation
 from backend.database.models.finding import Finding
 from backend.database.models.webhook import Webhook
@@ -661,6 +664,57 @@ def check_scheduled_scans():
     except Exception:
         db.rollback()
         logger.exception("Scheduled scan dispatch failed")
+        raise
+    finally:
+        _close_worker_session(db)
+
+
+@celery_app.task(name="tasks.reconcile_pending_evidence_deletions", acks_late=True)
+def reconcile_pending_evidence_deletions(batch_size: int = 100):
+    """Retry tenant-scoped Evidence tombstones left by interrupted deletions."""
+    db = SessionLocal()
+    deleted = 0
+    failed = 0
+    try:
+        if db.get_bind().dialect.name == "postgresql":
+            db.execute(text("SELECT set_config('app.auth_lookup', 'true', true)"))
+        tenant_ids = [row[0] for row in db.query(Organization.id).all()]
+        db.rollback()
+
+        manager = EvidenceManager(db)
+        for tenant_id in tenant_ids:
+            tenant_uuid = uuid.UUID(str(tenant_id))
+            set_worker_tenant(db, tenant_uuid)
+            pending_ids = [
+                row[0]
+                for row in db.query(Evidence.id).filter(
+                    Evidence.tenant_id == tenant_uuid,
+                    Evidence.deletion_status == "PENDING_DELETE",
+                ).order_by(
+                    Evidence.deletion_requested_at.asc(),
+                    Evidence.id.asc(),
+                ).with_for_update(skip_locked=True).limit(max(1, min(batch_size, 500))).all()
+            ]
+            db.rollback()
+
+            for evidence_id in pending_ids:
+                try:
+                    set_worker_tenant(db, tenant_uuid)
+                    manager.delete_evidence(evidence_id, tenant_uuid)
+                    deleted += 1
+                except Exception:
+                    db.rollback()
+                    failed += 1
+                    logger.exception(
+                        "Could not reconcile pending evidence deletion %s for tenant %s",
+                        evidence_id,
+                        tenant_uuid,
+                    )
+
+        return {"deleted": deleted, "failed": failed}
+    except Exception:
+        db.rollback()
+        logger.exception("Pending evidence deletion reconciliation failed")
         raise
     finally:
         _close_worker_session(db)
