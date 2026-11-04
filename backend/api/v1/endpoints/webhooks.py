@@ -64,7 +64,7 @@ def list_webhooks(
     current_user: User = Depends(require_role(["admin", "analyst"])),
     db: Session = Depends(get_tenant_db)
 ):
-    return db.query(Webhook).all()
+    return db.query(Webhook).filter(Webhook.tenant_id == current_user.tenant_id).all()
 
 @router.put("/{webhook_id}", response_model=WebhookResponse)
 def update_webhook(
@@ -73,7 +73,7 @@ def update_webhook(
     current_user: User = Depends(require_role(["admin"])),
     db: Session = Depends(get_tenant_db)
 ):
-    webhook = db.query(Webhook).filter(Webhook.id == webhook_id).first()
+    webhook = db.query(Webhook).filter(Webhook.id == webhook_id, Webhook.tenant_id == current_user.tenant_id).first()
     if not webhook:
         raise HTTPException(status_code=404, detail="Webhook not found")
     if webhook_in.name is not None: webhook.name = webhook_in.name
@@ -91,7 +91,7 @@ def delete_webhook(
     current_user: User = Depends(require_role(["admin"])),
     db: Session = Depends(get_tenant_db)
 ):
-    webhook = db.query(Webhook).filter(Webhook.id == webhook_id).first()
+    webhook = db.query(Webhook).filter(Webhook.id == webhook_id, Webhook.tenant_id == current_user.tenant_id).first()
     if not webhook:
         raise HTTPException(status_code=404, detail="Webhook not found")
     db.delete(webhook)

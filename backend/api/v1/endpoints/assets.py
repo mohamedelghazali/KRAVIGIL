@@ -21,7 +21,7 @@ def create_asset(
     current_user: User = Depends(require_role(["admin", "analyst"])),
     db: Session = Depends(get_tenant_db)
 ):
-    target = db.query(Target).filter(Target.id == asset_in.target_id).first()
+    target = db.query(Target).filter(Target.id == asset_in.target_id, Target.tenant_id == current_user.tenant_id).first()
     if not target:
         raise HTTPException(status_code=404, detail="Target not found")
 
@@ -51,7 +51,7 @@ def list_assets(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_tenant_db)
 ):
-    return db.query(Asset).all()
+    return db.query(Asset).filter(Asset.tenant_id == current_user.tenant_id).all()
 
 @router.get("/{asset_id}", response_model=AssetResponse)
 def get_asset(
@@ -59,7 +59,7 @@ def get_asset(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_tenant_db)
 ):
-    asset = db.query(Asset).filter(Asset.id == asset_id).first()
+    asset = db.query(Asset).filter(Asset.id == asset_id, Asset.tenant_id == current_user.tenant_id).first()
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
     return asset
@@ -72,7 +72,7 @@ def update_asset(
     current_user: User = Depends(require_role(["admin", "analyst"])),
     db: Session = Depends(get_tenant_db)
 ):
-    asset = db.query(Asset).filter(Asset.id == asset_id).first()
+    asset = db.query(Asset).filter(Asset.id == asset_id, Asset.tenant_id == current_user.tenant_id).first()
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
 
@@ -100,7 +100,7 @@ def delete_asset(
     current_user: User = Depends(require_role(["admin"])),
     db: Session = Depends(get_tenant_db)
 ):
-    asset = db.query(Asset).filter(Asset.id == asset_id).first()
+    asset = db.query(Asset).filter(Asset.id == asset_id, Asset.tenant_id == current_user.tenant_id).first()
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
 

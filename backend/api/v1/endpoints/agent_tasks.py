@@ -42,13 +42,17 @@ def poll_tasks(
     if not cert_fingerprint:
         raise HTTPException(status_code=401, detail="Agent fingerprint missing")
 
-    agent = db.query(Agent).filter(Agent.certificate_fingerprint == cert_fingerprint).first()
+    agent = db.query(Agent).filter(
+        Agent.certificate_fingerprint == cert_fingerprint,
+        Agent.status != "REVOKED",
+    ).first()
     if not agent:
         raise HTTPException(status_code=401, detail="Agent not found or revoked")
 
     tasks = db.query(AgentTask).filter(
         AgentTask.agent_id == agent.id,
-        AgentTask.status == "PENDING"
+        AgentTask.tenant_id == agent.tenant_id,
+        AgentTask.status == "PENDING",
     ).limit(5).all()
 
     for task in tasks:
@@ -69,12 +73,25 @@ def submit_task_result(
     if not cert_fingerprint:
         raise HTTPException(status_code=401, detail="Agent fingerprint missing")
 
-    task = db.query(AgentTask).filter(AgentTask.id == task_id).first()
+    agent = db.query(Agent).filter(
+        Agent.certificate_fingerprint == cert_fingerprint,
+        Agent.status != "REVOKED",
+    ).first()
+    if not agent:
+        raise HTTPException(status_code=401, detail="Agent not found or revoked")
+
+    task = db.query(AgentTask).filter(
+        AgentTask.id == task_id,
+        AgentTask.agent_id == agent.id,
+        AgentTask.tenant_id == agent.tenant_id,
+    ).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
     if task.status != "DISPATCHED":
         raise HTTPException(status_code=400, detail="Task is not in dispatched state")
+    if result_in.status not in {"COMPLETED", "FAILED"}:
+        raise HTTPException(status_code=422, detail="Unsupported agent task result status")
 
     try:
         task.status = result_in.status
@@ -94,7 +111,7 @@ def submit_task_result(
                 )
                 db.add(obs)
 
-            scan = db.query(Scan).filter(Scan.id == task.scan_id).first()
+            scan = db.query(Scan).filter(Scan.id == task.scan_id, Scan.tenant_id == task.tenant_id).first()
             if scan:
                 scan.status = "COMPLETED"
                 scan.finished_at = datetime.utcnow()
