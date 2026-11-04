@@ -4,6 +4,7 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 mkdir -p workspace
+export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-kravigil}"
 
 BASE_COMPOSE=(-f infrastructure/docker-compose.yml -f infrastructure/docker-compose.prod.yml -f infrastructure/docker-compose.backup.yml)
 
@@ -35,7 +36,7 @@ for name in SECRET_KEY DB_PASSWORD APP_DB_PASSWORD BACKUP_ENCRYPTION_KEY REDIS_P
   esac
 done
 
-for name in MINIO_USER MINIO_TARGET_USER SMTP_HOST SMTP_FROM_ADDRESS ADMIN_EMAIL FRONTEND_URL; do
+for name in MINIO_USER MINIO_TARGET_USER SMTP_HOST SMTP_FROM_ADDRESS ADMIN_EMAIL FRONTEND_URL MINIO_TARGET_URL; do
   if [[ -z "${!name:-}" || "${!name}" == CHANGE_ME* ]]; then
     echo "ERROR: $name must be configured in .env." >&2
     exit 1
@@ -49,6 +50,35 @@ for name in DB_PASSWORD APP_DB_PASSWORD REDIS_PASSWORD; do
     exit 1
   fi
 done
+
+case "$MINIO_TARGET_URL" in
+  https://*) ;;
+  *) echo "ERROR: MINIO_TARGET_URL must be an off-host HTTPS S3-compatible endpoint." >&2; exit 1 ;;
+esac
+TARGET_AUTHORITY="${MINIO_TARGET_URL#https://}"
+TARGET_HOST="${TARGET_AUTHORITY%%[:/]*}"
+case "${TARGET_HOST,,}" in
+  ""|localhost|minio|target-minio|127.0.0.1|0.0.0.0|change_me*)
+    echo "ERROR: MINIO_TARGET_URL must point to a configured remote storage service, not a local Compose service or placeholder." >&2
+    exit 1
+    ;;
+esac
+if [[ "$TARGET_AUTHORITY" == */* || "$TARGET_AUTHORITY" == *\?* || "$TARGET_AUTHORITY" == *\#* ]]; then
+  echo "ERROR: MINIO_TARGET_URL must be an endpoint origin without path/query/fragment." >&2
+  exit 1
+fi
+SOURCE_AUTHORITY="${MINIO_SOURCE_URL#*://}"
+SOURCE_HOST="${SOURCE_AUTHORITY%%[:/]*}"
+if [[ "${TARGET_HOST,,}" == "${SOURCE_HOST,,}" ]]; then
+  echo "ERROR: source and replication target must use different hostnames." >&2
+  exit 1
+fi
+case "${TARGET_HOST,,}" in
+  127.*|host.docker.internal|gateway.docker.internal|localhost.localdomain)
+    echo "ERROR: MINIO_TARGET_URL cannot point back to the local host." >&2
+    exit 1
+    ;;
+esac
 
 case "$FRONTEND_URL" in
   https://*) ;;
@@ -117,7 +147,7 @@ echo "[1/8] Building production images..."
 docker compose "${BASE_COMPOSE[@]}" build
 
 echo "[2/8] Starting data services and the mTLS-protected network engine..."
-docker compose "${BASE_COMPOSE[@]}" up -d --wait db redis minio target-minio network_engine
+docker compose "${BASE_COMPOSE[@]}" up -d --wait db redis minio network_engine
 
 echo "[3/8] Configuring evidence and backup replication..."
 bash infrastructure/minio/replicate.sh
