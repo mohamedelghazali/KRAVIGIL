@@ -4,6 +4,12 @@ from datetime import datetime, timedelta
 
 from backend.core.security import security_service
 from backend.database.models.session import UserSession
+from backend.database.models.agent import Agent
+from backend.database.models.agent_task import AgentTask
+from backend.database.models.asset import Asset
+from backend.database.models.finding import Finding
+from backend.database.models.scan import Scan
+from backend.database.models.target import Target
 from backend.core import audit_service
 from backend.database.models.user import Organization, User
 from tests.conftest import TestingSessionLocal
