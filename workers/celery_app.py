@@ -28,7 +28,11 @@ celery_app.conf.update(
     broker_connection_retry_on_startup=True,
     result_expires=86400,
     beat_schedule={
-        "reconcile-pending-evidence-deletions-every-five-minutes": {\n            "task": "tasks.reconcile_pending_evidence_deletions",\n            "schedule": crontab(minute="*/5"),\n        },\n        "check-scheduled-scans-every-minute": {
+        "reconcile-pending-evidence-deletions-every-five-minutes": {
+            "task": "tasks.reconcile_pending_evidence_deletions",
+            "schedule": crontab(minute="*/5"),
+        },
+        "check-scheduled-scans-every-minute": {
             "task": "tasks.check_scheduled_scans",
             "schedule": crontab(minute="*"),
         }
