@@ -117,6 +117,10 @@ def delete_asset(
     ]
     try:
         EvidenceManager.delete_for_scans(db, scan_ids, current_user.tenant_id)
+        if scan_ids:
+            db.query(Scan).filter(
+                Scan.id.in_(scan_ids), Scan.tenant_id == current_user.tenant_id
+            ).delete(synchronize_session=False)
         db.delete(asset)
         db.commit()
     except Exception as exc:
