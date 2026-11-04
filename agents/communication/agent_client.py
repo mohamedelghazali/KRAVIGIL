@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 import httpx
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
-from typing import Dict, Any, List
+from typing import Any, Dict
 from agents.identity.identity_manager import IdentityManager
 from agents.execution.local_scanner import LocalScanner
 
