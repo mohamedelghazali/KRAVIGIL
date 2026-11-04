@@ -5,7 +5,7 @@ def test_pinned_https_scan_preserves_host_and_sni(monkeypatch):
     adapter = NucleiAdapter()
     captured = {}
 
-    def fake_execute(args):
+    def fake_execute(args, should_cancel=None):
         captured["args"] = args
         return ""
 
