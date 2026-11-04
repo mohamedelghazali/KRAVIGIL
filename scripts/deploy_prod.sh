@@ -79,7 +79,16 @@ if command -v openssl >/dev/null 2>&1; then
   openssl x509 -in "$CERT_DIR/ca.crt" -noout >/dev/null
   openssl x509 -in "$CERT_DIR/client.crt" -noout >/dev/null
   openssl pkey -in "$CERT_DIR/client.key" -noout >/dev/null
-  openssl verify -CAfile "$CERT_DIR/ca.crt" "$CERT_DIR/server.crt" "$CERT_DIR/client.crt" >/dev/null
+  openssl verify -purpose sslserver -CAfile "$CERT_DIR/ca.crt" "$CERT_DIR/server.crt" >/dev/null
+  openssl verify -purpose sslclient -CAfile "$CERT_DIR/ca.crt" "$CERT_DIR/client.crt" >/dev/null
+  if ! diff -q <(openssl x509 -in "$CERT_DIR/server.crt" -pubkey -noout) <(openssl pkey -in "$CERT_DIR/server.key" -pubout) >/dev/null; then
+    echo "ERROR: gRPC server certificate and private key do not match." >&2
+    exit 1
+  fi
+  if ! diff -q <(openssl x509 -in "$CERT_DIR/client.crt" -pubkey -noout) <(openssl pkey -in "$CERT_DIR/client.key" -pubout) >/dev/null; then
+    echo "ERROR: gRPC client certificate and private key do not match." >&2
+    exit 1
+  fi
   if ! openssl x509 -in "$CERT_DIR/server.crt" -noout -ext subjectAltName | grep -q 'DNS:network_engine'; then
     echo "ERROR: gRPC server certificate must include DNS:network_engine in subjectAltName." >&2
     exit 1
