@@ -45,7 +45,7 @@ The separate Docker verification workflow was hardened after the earlier run was
 
 ### 1. Incomplete implementation
 
-The original inventory contained **87 Python source files** with the explicit scaffold marker. Four inventory entries (shared severity/status enums and scan/finding schemas) now have implementations and focused unit tests; **83 entries remain open**, and the four implemented entries still require CI/integration acceptance. The remaining files carry the marker:
+The original inventory contained **87 Python source files** with the explicit scaffold marker. Eight inventory entries (shared severity/status enums and asset/evidence/finding/report/scan/user schemas) now have implementations and focused unit tests; **79 entries remain open**, and the implemented entries still require CI/integration acceptance. The remaining files carry the marker:
 
 \`KRAVIGIL module scaffold. Implementation pending.\`
 
@@ -86,8 +86,8 @@ No production deployment has been performed from this review. The following rema
 
 - PR #2 was merged to `main` (merge commit `9e59954fb999ee4f60b3dc58e1d835ed31c4397d`), adding the evidence-based closure plan and full-history Gitleaks checkout.
 - Implemented shared severity/status enums and scan/finding Pydantic schemas, with focused unit tests. The four corresponding issue #1 inventory entries are checked as implemented; CI and integration acceptance are still required.
-- PR #4 (`feat(api): close scan and finding schema scaffold slice`) is open and ready for review. It wires the findings API to the shared schemas and aligns the frontend scan lifecycle type. It must not be merged until its CI checks are green.
+- PR #4 (`feat(api): close scan and finding schema scaffold slice`) was merged. Its backend test job failed (75 passed, 1 failed) because uppercase `RESOLVED` did not normalize; this was corrected on `main` with regression coverage. PR #5 integrates the asset, user, and report schemas into their API endpoints and is undergoing CI revalidation.
 - Latest recorded closure-plan commit: `610d83fafc15744f470037d13eab3a121c68c626`. This is a documentation commit, not evidence that all tests passed.
-- The PR #4 CI/security/container runs were still in progress or queued at the time of this update. No production acceptance or release approval is claimed.
+- PR #4's frontend, C++ build, lint, container-build job, Bandit, pip-audit, and Gitleaks checks passed; its backend test job failed. PR #5 CI/security/container runs are in progress. No production acceptance or release approval is claimed.
 
 A green CI run is necessary but not sufficient. Reassess this document after every blocker is closed and attach the exact commit SHA and workflow run URLs to the release record.
