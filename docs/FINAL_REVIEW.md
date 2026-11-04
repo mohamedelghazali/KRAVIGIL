@@ -30,22 +30,23 @@ The latest CI runs must be inspected directly before each release decision. The 
 
 Black formatting is currently non-blocking. The latest check reported **84 files would be reformatted**; this is outstanding formatting debt, not a passing formatting check.
 
-**Latest verified application commit:** `0a99199a` (2026-11-03).
+**Latest verified functional CI candidate:** PR #11 head `7e90aaa3a6851adf13fdcac254ce57d4c2e57d61` (2026-11-04). The current `main` also contains subsequent documentation/inventory reconciliation commits.
 
-The main CI workflow passed on that commit:
-- Backend/security tests: **19 passed**, PostgreSQL migrations and RLS included; measured coverage **59%**.
-- Ruff and MyPy: passed.
-- Frontend production build: passed.
+The latest PR #11 head CI workflow passed:
+- Backend tests with PostgreSQL migrations and non-superuser RLS role: passed (the earlier PR #9 backend suite reported **101 passed**, measured overall coverage **62%**).
+- Ruff, MyPy, and frontend production build: passed.
 - C++ network engine build and unit tests: passed.
-- Backend and network-engine container builds in the main CI workflow: passed.
+- Bandit, pip-audit, and Gitleaks: passed.
+- Separate Docker verification: backend, worker, and network-engine image jobs all passed (run [41843202364](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/41843202364)).
+- Workflow evidence: CI [41843202479](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/41843202479), Security [41843202440](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/41843202440).
 
-The separate Docker verification workflow was hardened after the earlier run was cancelled: image builds now run as three independent matrix jobs (backend, worker, network engine), `fail-fast` is disabled, in-flight runs are not cancelled by newer pushes, and each job has a 60-minute timeout. The hardened workflow was triggered on review commit `8203fca64edb5d411a2e27e9226776516477dd55` (run [41731335426](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/41731335426)). At the time of this review it was still pending and had not exposed its matrix jobs; no image-build result is claimed until backend, worker, and network-engine jobs all complete.
+The separate Docker verification workflow uses three independent jobs (backend, worker, network engine). All three completed successfully on PR #11 head in run [41843202364](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/41843202364).
 
 ## Release blockers
 
 ### 1. Incomplete implementation
 
-The original inventory contained **87 Python source files** with the explicit scaffold marker. Eight inventory entries (shared severity/status enums and asset/evidence/finding/report/scan/user schemas) now have implementations and focused unit tests; **79 entries remain open**. The schema-focused backend suite passed in PR #5 CI (85 tests total, 61% measured repository coverage); broader end-to-end acceptance remains outstanding. The remaining files carry the marker:
+The original inventory contained **87 Python source files** with the explicit scaffold marker. The reconciled issue #1 inventory now records **14 entries implemented with tests**, **7 safely de-scoped** (one unused PDF worker and six unreferenced duplicate scanner-adapter placeholders), and **66 entries still open**. The correlation/normalization test suite was included in PR #9's backend run (101 passed; 62% measured overall coverage). Broader end-to-end acceptance remains outstanding. The remaining files carry the marker:
 
 \`KRAVIGIL module scaffold. Implementation pending.\`
 
@@ -91,3 +92,11 @@ No production deployment has been performed from this review. The following rema
 - PR #4's frontend, C++ build, lint, container-build job, Bandit, pip-audit, and Gitleaks checks passed; its backend test job failed. PR #9's CI/security/image gates passed. PR #11 de-scopes six unused integration scaffolds; its backend tests and security checks passed, while C++/container/image checks remain in progress. No production acceptance or release approval is claimed.
 
 A green CI run is necessary but not sufficient. Reassess this document after every blocker is closed and attach the exact commit SHA and workflow run URLs to the release record.
+
+
+## Verified update — 2026-11-04, PR #11
+
+- PR #8 correlation/differential implementation merged; PR #9 timestamp regression import fix merged; PR #10 unused PDF worker removal merged; PR #11 six duplicate unused integration adapter removals merged.
+- PR #11 head `7e90aaa3a6851adf13fdcac254ce57d4c2e57d61`: CI run `41843202479` passed all jobs (backend/PostgreSQL RLS, lint/type checks, frontend build, C++ tests); security run `41843202440` passed Bandit, pip-audit, and Gitleaks; Docker image run `41843202364` passed backend, worker, and network-engine images.
+- The current `main` tip is documentation/inventory reconciliation commit `88627dcd4353201ecbec28d3fa7b96daa248a5d4`; no CI run was returned for that documentation-only commit. The functional evidence above is tied to the PR #11 head, not falsely attributed to the docs commit.
+- Production remains **NO-GO**: 66 inventory entries remain open; production object storage is still based on the MinIO community images and is not accepted; HTTPS/secret rotation/tenant isolation across all workers/retention/backup-restore/load/operations acceptance have not been run in a production-like environment.
