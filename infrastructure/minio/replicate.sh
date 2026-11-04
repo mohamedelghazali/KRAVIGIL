@@ -1,58 +1,50 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=mc_network.sh
+source "$SCRIPT_DIR/mc_network.sh"
 
-: "${MINIO_USER:?MINIO_USER is required for the source MinIO account}"
-: "${MINIO_PASSWORD:?MINIO_PASSWORD is required for the source MinIO account}"
-: "${MINIO_TARGET_USER:?MINIO_TARGET_USER is required for the target MinIO account}"
-: "${MINIO_TARGET_PASSWORD:?MINIO_TARGET_PASSWORD is required for the target MinIO account}"
 : "${MINIO_BUCKET:=kravigil-evidence}"
 : "${MINIO_BACKUP_BUCKET:=kravigil-backups}"
 : "${BACKUP_RETENTION_DAYS:=30}"
-: "${MINIO_SOURCE_URL:=http://minio:9000}"
-: "${MINIO_TARGET_URL:=http://target-minio:9000}"
 
-NETWORK="$(docker network ls --filter label=com.docker.compose.network=data_plane --format '{{.Name}}' | head -n 1)"
-if [[ -z "$NETWORK" ]]; then
-  echo "ERROR: Could not find the Compose data_plane network." >&2
-  exit 1
-fi
+run_mc /bin/sh -ec '
+  mc alias set source "$MC_HOST_source"
+  mc alias set target "$MC_HOST_target"
 
-docker run --rm \
-  --network "$NETWORK" \
-  -e MC_HOST_source="http://${MINIO_USER}:${MINIO_PASSWORD}@${MINIO_SOURCE_URL#http://}" \
-  -e MC_HOST_target="http://${MINIO_TARGET_USER}:${MINIO_TARGET_PASSWORD}@${MINIO_TARGET_URL#http://}" \
-  -e EVIDENCE_BUCKET="$MINIO_BUCKET" \
-  -e BACKUP_BUCKET="$MINIO_BACKUP_BUCKET" \
-  -e BACKUP_RETENTION_DAYS="$BACKUP_RETENTION_DAYS" \
-  minio/mc:RELEASE.2025-08-13T08-35-41Z /bin/sh -ec '
-    mc alias set source "$MC_HOST_source"
-    mc alias set target "$MC_HOST_target"
-
-    for BUCKET in "$EVIDENCE_BUCKET" "$BACKUP_BUCKET"; do
-      echo "Configuring versioning and replication for $BUCKET"
-      mc mb --ignore-existing "source/$BUCKET"
-      mc mb --ignore-existing "target/$BUCKET"
-      mc version enable "source/$BUCKET"
-      mc version enable "target/$BUCKET"
-      if ! mc replicate ls "source/$BUCKET" | grep -q "target/$BUCKET"; then
-        mc replicate add "source/$BUCKET" \
-          --remote-bucket "target/$BUCKET" \
-          --priority 1 \
-          --replicate "delete,delete-marker,existing-objects"
+  for BUCKET in "$EVIDENCE_BUCKET" "$BACKUP_BUCKET"; do
+    echo "Configuring versioning and replication for $BUCKET"
+    mc mb --ignore-existing "source/$BUCKET"
+    mc mb --ignore-existing "target/$BUCKET"
+    mc version enable "source/$BUCKET"
+    mc version enable "target/$BUCKET"
+    if ! mc replicate ls "source/$BUCKET" | grep -q "target/$BUCKET"; then
+      if [[ "$BUCKET" == "$BACKUP_BUCKET" ]]; then
+        # Preserve backup versions on the recovery target even if the source
+        # bucket or its credentials are compromised.
+        REPLICATION_FLAGS="existing-objects"
+      else
+        # Evidence deletions must propagate to the replica; provider-side
+        # retention/Object Lock must still protect versions during the policy window.
+        REPLICATION_FLAGS="delete,delete-marker,existing-objects"
       fi
-      mc replicate status "source/$BUCKET"
-    done
+      mc replicate add "source/$BUCKET" \
+        --remote-bucket "target/$BUCKET" \
+        --priority 1 \
+        --replicate "$REPLICATION_FLAGS"
+    fi
+    mc replicate status "source/$BUCKET"
+  done
 
-    for ALIAS in source target; do
-      RULES="$(mc --json ilm rule ls "$ALIAS/$BACKUP_BUCKET" 2>/dev/null || true)"
-      if ! printf '%s' "$RULES" | grep -q '"expireDays":'; then
-        mc ilm rule add --expire-days "$BACKUP_RETENTION_DAYS" \
-          --noncurrent-expire-days "$BACKUP_RETENTION_DAYS" "$ALIAS/$BACKUP_BUCKET"
-      fi
-      if ! printf '%s' "$RULES" | grep -q '"expireDeleteMarker":true'; then
-        mc ilm rule add --expire-delete-marker "$ALIAS/$BACKUP_BUCKET"
-      fi
-    done
-  '
-
-echo "MinIO versioning and replication rules configured."
+  for ALIAS in source target; do
+    RULES="$(mc --json ilm rule ls "$ALIAS/$BACKUP_BUCKET" 2>/dev/null || true)"
+    if ! printf "%s" "$RULES" | grep -q "\"expireDays\":"; then
+      mc ilm rule add --expire-days "$BACKUP_RETENTION_DAYS" \
+        --noncurrent-expire-days "$BACKUP_RETENTION_DAYS" "$ALIAS/$BACKUP_BUCKET"
+    fi
+    if ! printf "%s" "$RULES" | grep -q "\"expireDeleteMarker\":true"; then
+      mc ilm rule add --expire-delete-marker "$ALIAS/$BACKUP_BUCKET"
+    fi
+  done
+' 
+echo "S3-compatible bucket versioning and replication rules configured."
