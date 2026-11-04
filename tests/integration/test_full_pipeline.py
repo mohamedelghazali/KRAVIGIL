@@ -121,3 +121,54 @@ def test_network_scan_rejects_cross_tenant_target_and_invalid_ports(
     )
     assert invalid_ports.status_code == 422
     assert enqueued == []
+
+def test_network_scan_enqueue_failure_marks_persisted_scan_failed(
+    client, db_session, integration_admin, monkeypatch
+):
+    user, headers = integration_admin
+    target = Target(
+        id=uuid.uuid4(),
+        tenant_id=user.tenant_id,
+        name="Network enqueue failure target",
+        ip_address="192.0.2.93",
+        is_authorized=True,
+    )
+    db_session.add(target)
+    db_session.commit()
+
+    def fail_delay(**kwargs):
+        raise RuntimeError("broker unavailable")
+
+    monkeypatch.setattr(
+        scans_endpoint,
+        "_resolve_scan_ip",
+        lambda target, guard: target.ip_address,
+    )
+    monkeypatch.setattr(
+        scans_endpoint,
+        "run_network_scan",
+        SimpleNamespace(delay=fail_delay),
+    )
+
+    response = client.post(
+        "/api/v1/scans/network",
+        json={"target_id": str(target.id), "ports": [80, 443]},
+        headers=headers,
+    )
+
+    assert response.status_code == 500, response.text
+    failed_scans = (
+        db_session.query(Scan)
+        .filter(
+            Scan.tenant_id == user.tenant_id,
+            Scan.target_id == target.id,
+            Scan.scan_type == "NETWORK",
+        )
+        .all()
+    )
+    assert len(failed_scans) == 1
+    failed_scan = failed_scans[0]
+    assert failed_scan.status == "FAILED"
+    assert failed_scan.error_message == "broker unavailable"
+    assert failed_scan.finished_at is not None
+    assert failed_scan.task_id is None
