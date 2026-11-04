@@ -19,7 +19,7 @@
 | ID | Workstream | Required closure evidence | Current status |
 |---|---|---|---|
 | W0 | Baseline and inventory | Exact base SHA, complete scaffold inventory, current workflows and required checks recorded | In progress — PRs #8–#17 merged; latest main SHA `a4be539fff35749e92cb76a64495170e6448cd30`; PR #18 is under CI |
-| W1 | Scaffold disposition (87 files) | Every file implemented with focused tests, or safely de-scoped with zero runtime references; issue #1 checklist reconciled | In progress — 19/87 entries implemented with tests and 21/87 safely de-scoped; 47 remain open. Issue #1 is reconciled. PR #14 full gates passed; PRs #15–#17 have CI/security passed but image workflows are still pending/in progress |
+| W1 | Scaffold disposition (87 files) | Every file implemented with focused tests, or safely de-scoped with zero runtime references; issue #1 checklist reconciled | In progress — 19/87 entries implemented with tests and 26/87 safely de-scoped; 42 remain open. Issue #1 is reconciled. PR #14 full gates passed; PRs #15–#18 CI/security passed or are passing, while separate image workflows remain queued/in progress |
 | W2 | Core integration | API, DB models/repositories, schemas, services, workers, scanner adapters, and UI contracts exercised end-to-end | In progress — schema/correlation/differential changes and tenant-scoped repositories are merged; repository API/worker wiring and end-to-end scan/report acceptance remain |
 | W3 | CI and code quality | Backend tests, migrations/RLS, Ruff, MyPy, Black, frontend locked install/build, C++ tests, secret/dependency/security scans all pass on one SHA | In progress — PR #14 head passed all CI jobs: backend suite 106 passed (63% overall), PostgreSQL migrations/RLS, Ruff, MyPy, frontend, C++; security scans and all three image builds passed. PRs #15–#17 CI/security pass; separate image verification is still pending/in progress |
 | W4 | Container supply chain | Backend, worker, and network-engine images independently build and publish/verify on the same SHA; pinned base/runtime images | Passed on PR #14 head (run 41844958262); PRs #15–#17 have newer image workflows queued/in progress and must finish on the resulting candidate |
@@ -85,8 +85,10 @@ Each batch must include caller compatibility, negative/boundary tests, and a ref
 - PR #12 merged tenant-scoped BaseRepository plus Asset/Finding/Scan/User repositories and focused tests. Its initial MyPy job exposed four dynamic ORM typing errors; backend tests passed 106 (63% overall) and the MyPy correction was merged separately via PR #14.
 - PR #14 merge commit `994a107aedb15f946bce1cf4100f3bd6cc64bc6b`: full CI, security, and three-image verification all passed. CI run `41844957296`; security `41844957887`; images `41844958262`.
 - PR #13 removed unused Organization/Service model placeholders; PR #15 removed four unused correlation/differential duplicates; PR #16 removed four unmounted API placeholders; PR #17 removed four duplicate normalization placeholders. These are de-scoped, not implemented capabilities.
-- PR #15 CI `41845614746` and security `41845614776` passed; three-image verification `41845614608` remained queued/in progress at the last check.
-- PR #16 CI `41846068750` and security `41846068883` passed; image verification `41846068962` remained pending.
+- PR #15 CI `41845614746` and security `41845614776` passed; three-image verification `41845614608` remained in progress.
+- PR #16 CI `41846068750` and security `41846068883` passed; image verification `41846068962` remained in progress.
 - PR #17 CI `41846316182` and security `41846316262` passed; image verification `41846316385` had the worker image still running.
-- PR #18 removes five unused feedback/suppression framework scaffolds; all CI/security/image checks are pending. If merged, inventory disposition becomes 19 implemented, 26 de-scoped, 42 open.
+- PR #18 merged as `0eb3d50f3ca84c95874ec543174911f83fe156eb`, removing five unused feedback/suppression framework scaffolds. Security passed; CI `41846522534` and three-image verification `41846522760` remained in progress. Inventory disposition: 19 implemented, 26 de-scoped, 42 open.
 - Current main SHA at this update: `a4be539fff35749e92cb76a64495170e6448cd30`. Release remains NO-GO.
+
+- Current main SHA after documentation reconciliation: `ca3fe5cfeccf194d07b3a1f460320ce1bc1ec442`.
