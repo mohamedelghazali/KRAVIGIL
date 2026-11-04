@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import List, Dict, Any
+from typing import Callable, List, Dict, Any, Optional
 from backend.services.normalization.adapters.base import BaseEngineAdapter
 
 logger = logging.getLogger(__name__)
@@ -9,14 +9,17 @@ class SemgrepAdapter(BaseEngineAdapter):
     def __init__(self):
         super().__init__(binary_path="semgrep", timeout_seconds=1200)
 
-    def scan(self, code_path: str, config: str = "auto") -> List[Dict[str, Any]]:
+    def scan(
+        self, code_path: str, config: str = "auto",
+        should_cancel: Optional[Callable[[], bool]] = None,
+    ) -> List[Dict[str, Any]]:
         args = [
             "--config", config,
             "--json",
             "--quiet",
             code_path
         ]
-        raw_output = self.execute(args)
+        raw_output = self.execute(args, should_cancel=should_cancel)
         return self.parse_output(raw_output)
 
     def parse_output(self, raw_output: str) -> List[Dict[str, Any]]:
