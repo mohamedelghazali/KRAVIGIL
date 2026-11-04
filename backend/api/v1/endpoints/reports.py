@@ -2,7 +2,7 @@ import logging
 import uuid
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict
+from backend.schemas.report import ReportCreate, ReportRead as ReportResponse
 from sqlalchemy.orm import Session
 from backend.core.security import get_current_user, require_role
 from backend.database.models.report import Report
@@ -14,18 +14,6 @@ from backend.services.evidence.minio_client import MinIOClient
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-class ReportCreate(BaseModel):
-    scan_id: uuid.UUID
-
-class ReportResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id: uuid.UUID
-    scan_id: uuid.UUID
-    status: str
-    created_at: datetime
-    completed_at: datetime | None
-    file_size_bytes: int | None
 
 def _tenant_id(user: User) -> uuid.UUID:
     value = getattr(user, "organization_id", None) or getattr(user, "tenant_id", None)
@@ -45,7 +33,7 @@ def create_report(report_in: ReportCreate,
         raise HTTPException(status_code=404, detail="Scan not found")
     if scan.status != "COMPLETED":
         raise HTTPException(status_code=400, detail="Cannot generate report for incomplete scan")
-    report = Report(tenant_id=tenant_id, scan_id=scan.id, status="QUEUED",
+    report = Report(tenant_id=tenant_id, scan_id=scan.id, report_type=report_in.report_type, status="QUEUED",
                     requested_by=current_user.id)
     try:
         db.add(report)
