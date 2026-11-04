@@ -93,7 +93,7 @@ jobs:
           sleep 2
         done
         exit 1
-    - name: Run Unit & Security Tests
+    - name: Run Unit, Integration, Regression & Security Tests
       env:
         DATABASE_URL: postgresql://kravigil_admin:test_password@localhost:5432/kravigil_test
         RLS_DATABASE_URL: postgresql://kravigil_app:test_app_password@localhost:5432/kravigil_test
@@ -106,7 +106,7 @@ jobs:
         MINIO_SECURE: "false"
         DEBUG: "True"
       run: |
-        SECRET_KEY="$(openssl rand -hex 32)" pytest tests/unit tests/security -v --cov=backend --cov=ai
+        SECRET_KEY="$(openssl rand -hex 32)" pytest tests/unit tests/integration tests/regression tests/security -v --cov=backend --cov=ai
 
   cpp-build:
     runs-on: ubuntu-latest
