@@ -66,7 +66,7 @@ if [[ ! -s "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" || ! -s "/etc/letsencry
 fi
 
 CERT_DIR="infrastructure/certs/network-engine"
-for file in "$CERT_DIR/server.crt" "$CERT_DIR/server.key" "$CERT_DIR/ca.crt"; do
+for file in "$CERT_DIR/server.crt" "$CERT_DIR/server.key" "$CERT_DIR/ca.crt" "$CERT_DIR/client.crt" "$CERT_DIR/client.key"; do
   if [[ ! -s "$file" ]]; then
     echo "ERROR: required gRPC TLS file is missing or empty: $file" >&2
     exit 1
@@ -76,8 +76,20 @@ done
 if command -v openssl >/dev/null 2>&1; then
   openssl x509 -in "$CERT_DIR/server.crt" -noout >/dev/null
   openssl pkey -in "$CERT_DIR/server.key" -noout >/dev/null
+  openssl x509 -in "$CERT_DIR/ca.crt" -noout >/dev/null
+  openssl x509 -in "$CERT_DIR/client.crt" -noout >/dev/null
+  openssl pkey -in "$CERT_DIR/client.key" -noout >/dev/null
+  openssl verify -CAfile "$CERT_DIR/ca.crt" "$CERT_DIR/server.crt" "$CERT_DIR/client.crt" >/dev/null
   if ! openssl x509 -in "$CERT_DIR/server.crt" -noout -ext subjectAltName | grep -q 'DNS:network_engine'; then
     echo "ERROR: gRPC server certificate must include DNS:network_engine in subjectAltName." >&2
+    exit 1
+  fi
+  if ! openssl x509 -in "$CERT_DIR/server.crt" -noout -ext extendedKeyUsage | grep -q 'TLS Web Server Authentication'; then
+    echo "ERROR: gRPC server certificate must include serverAuth extendedKeyUsage." >&2
+    exit 1
+  fi
+  if ! openssl x509 -in "$CERT_DIR/client.crt" -noout -ext extendedKeyUsage | grep -q 'TLS Web Client Authentication'; then
+    echo "ERROR: gRPC client certificate must include clientAuth extendedKeyUsage." >&2
     exit 1
   fi
 fi
