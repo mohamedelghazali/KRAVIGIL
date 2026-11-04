@@ -1,15 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
-from sqlalchemy.orm import Session
+import uuid
 from typing import List
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy.orm import Session
+
+from backend.core.audit_service import AuditService
+from backend.core.security import get_current_user, require_role
 from backend.database.models.asset import Asset
 from backend.database.models.target import Target
 from backend.database.models.user import User
 from backend.database.tenant import get_tenant_db
-from backend.core.security import get_current_user, require_role
-from backend.core.exceptions import KravigilException
-from backend.core.audit_service import AuditService
 from backend.schemas.asset import AssetCreate, AssetRead as AssetResponse, AssetUpdate
-import uuid
 
 router = APIRouter()
 
