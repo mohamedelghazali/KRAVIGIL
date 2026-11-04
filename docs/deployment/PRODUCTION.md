@@ -37,7 +37,7 @@ Cloud scans use the pinned Prowler CLI. Configure AWS credentials (or an appropr
 
 The C++ gRPC transport requires **mutual TLS (mTLS)** as well as the per-request engine token. The engine verifies client certificates against the internal CA; backend and worker verify the engine server certificate and present their own client certificates. The server certificate must identify the Compose DNS name `network_engine`.
 
-Generate a private CA, a server certificate, and a separate client certificate. Keep the CA private key offline and never mount it into containers:
+Generate a private CA, a server certificate, and distinct client certificates for backend and worker. Keep the CA private key offline and never mount it into containers:
 
 ```bash
 set -euo pipefail
@@ -119,7 +119,7 @@ Before opening public access:
 2. Verify login, MFA challenge, refresh, logout, password reset email, session revocation and tenant isolation.
 3. Run network, web, SAST and cloud scan workflows only against explicitly authorized targets.
 4. Verify report generation, evidence upload/download, webhook delivery, metrics and Grafana provisioning.
-5. Wait for the first encrypted PostgreSQL backup to finish and confirm the backup container is healthy. Verify MinIO replication for both evidence and backup buckets.
+5. Wait for the first encrypted PostgreSQL backup to finish and confirm the backup container is healthy. Verify off-host S3-compatible replication for both evidence and backup buckets.
 6. Restore a backup into an isolated PostgreSQL database: download the `.dump.gpg` object and its `.sha256` sidecar, run `sha256sum -c`, decrypt with `gpg --batch --pinentry-mode loopback --passphrase-file "$BACKUP_PASSPHRASE_FILE" --output restore.dump --decrypt backup.dump.gpg`, then validate with `pg_restore --list` before restoring with `pg_restore --clean --if-exists --no-owner --no-acl`. Never test restore against the live production database.
 7. Verify evidence objects and their SHA-256 hashes after replication and restore.
 8. Confirm bucket versioning and replication state on the remote target. The production overlay no longer starts a second MinIO container on the same host; deployment refuses local/placeholder targets and requires an HTTPS endpoint. Confirm the provider's replication target is in a separate account/region/failure domain and configure provider-side Object Lock/retention where required. Evidence delete markers are replicated to honor application deletions; backup-bucket deletions are deliberately not replicated so source-side compromise cannot erase the recovery copy. Verify the configured retention policy against legal and privacy requirements.
