@@ -16,7 +16,12 @@ logger = logging.getLogger(__name__)
 
 class AgentClient:
     def __init__(self, control_plane_url: str):
-        self.control_plane_url = control_plane_url
+        parsed_control_plane = urlsplit(control_plane_url)
+        if parsed_control_plane.scheme != "https" and parsed_control_plane.hostname not in {
+            "localhost", "127.0.0.1", "::1"
+        }:
+            raise ValueError("Agent control-plane connections must use HTTPS")
+        self.control_plane_url = control_plane_url.rstrip("/")
         self.identity = IdentityManager()
         self.fingerprint, self.public_key = self.identity.generate_identity("kravigil-agent")
         with open(self.identity.key_path, "rb") as key_file:

@@ -11,12 +11,17 @@ def main():
     agent_name = os.getenv("AGENT_NAME", "kravigil-agent-01")
     agent_version = "1.0.0"
     ip_address = os.getenv("AGENT_IP", "127.0.0.1")
+    admin_token = os.getenv("KRAVIGIL_ADMIN_TOKEN")
+
+    if not admin_token:
+        logger.error("KRAVIGIL_ADMIN_TOKEN is required for agent enrollment.")
+        sys.exit(1)
 
     logger.info(f"Starting KRAVIGIL Agent: {agent_name}")
 
     client = AgentClient(control_plane_url)
 
-    if not client.enroll(agent_name, agent_version, ip_address):
+    if not client.enroll(agent_name, agent_version, ip_address, admin_token):
         logger.error("Failed to enroll agent. Exiting.")
         sys.exit(1)
 
