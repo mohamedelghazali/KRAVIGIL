@@ -53,6 +53,9 @@ logs/
 *.pem
 *.key
 *.crt
+*.csr
+*.srl
+*.ext
 secrets/
 
 # Docker
