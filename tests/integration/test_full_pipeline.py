@@ -3,15 +3,13 @@ import uuid
 
 from backend.database.models.scan import Scan
 from backend.database.models.target import Target
-from backend.database.models.user import User
 import backend.api.v1.endpoints.scans as scans_endpoint
 
 
 def test_network_scan_pipeline_persists_and_dispatches_tenant_scoped_task(
-    client, auth_headers, db_session, monkeypatch
+    client, db_session, integration_admin, monkeypatch
 ):
-    user = db_session.query(User).filter(User.email == "admin@testorg.com").first()
-    assert user is not None
+    user, headers = integration_admin
     target = Target(
         id=uuid.uuid4(),
         tenant_id=user.tenant_id,
@@ -22,10 +20,10 @@ def test_network_scan_pipeline_persists_and_dispatches_tenant_scoped_task(
     db_session.add(target)
     db_session.commit()
 
-    dispatched = {}
+    dispatched = []
 
     def fake_delay(**kwargs):
-        dispatched.update(kwargs)
+        dispatched.append(kwargs)
         return SimpleNamespace(id="integration-task-001")
 
     monkeypatch.setattr(
@@ -42,7 +40,7 @@ def test_network_scan_pipeline_persists_and_dispatches_tenant_scoped_task(
     response = client.post(
         "/api/v1/scans/network",
         json={"target_id": str(target.id), "ports": [80, 443]},
-        headers=auth_headers,
+        headers=headers,
     )
 
     assert response.status_code == 202, response.text
@@ -50,13 +48,12 @@ def test_network_scan_pipeline_persists_and_dispatches_tenant_scoped_task(
     scan_id = uuid.UUID(payload["id"])
     assert payload["scan_type"] == "NETWORK"
     assert payload["status"] == "PENDING"
-    assert dispatched == {
-        "tenant_id": str(user.tenant_id),
-        "scan_id": str(scan_id),
-        "asset_id": dispatched["asset_id"],
-        "target_ip": "192.0.2.90",
-        "ports": [80, 443],
-    }
+    assert len(dispatched) == 1
+    assert dispatched[0]["tenant_id"] == str(user.tenant_id)
+    assert dispatched[0]["scan_id"] == str(scan_id)
+    assert dispatched[0]["target_ip"] == "192.0.2.90"
+    assert dispatched[0]["ports"] == [80, 443]
+    assert dispatched[0]["asset_id"]
 
     scan = (
         db_session.query(Scan)
@@ -69,11 +66,10 @@ def test_network_scan_pipeline_persists_and_dispatches_tenant_scoped_task(
     assert scan.asset_id is not None
 
 
-def test_network_scan_rejects_cross_tenant_target_without_dispatch(
-    client, auth_headers, db_session, monkeypatch
+def test_network_scan_rejects_cross_tenant_target_and_invalid_ports(
+    client, db_session, integration_admin, monkeypatch
 ):
-    user = db_session.query(User).filter(User.email == "admin@testorg.com").first()
-    assert user is not None
+    user, headers = integration_admin
     from backend.database.models.user import Organization
 
     other_tenant_id = uuid.uuid4()
@@ -88,16 +84,17 @@ def test_network_scan_rejects_cross_tenant_target_without_dispatch(
         ip_address="192.0.2.91",
         is_authorized=True,
     )
-    db_session.add(target)
+    own_target = Target(
+        id=uuid.uuid4(),
+        tenant_id=user.tenant_id,
+        name="Own tenant target",
+        ip_address="192.0.2.92",
+        is_authorized=True,
+    )
+    db_session.add_all([target, own_target])
     db_session.commit()
 
-    called = False
-
-    def fake_delay(**kwargs):
-        nonlocal called
-        called = True
-        return SimpleNamespace(id="should-not-run")
-
+    enqueued = []
     monkeypatch.setattr(
         scans_endpoint,
         "_resolve_scan_ip",
@@ -106,13 +103,21 @@ def test_network_scan_rejects_cross_tenant_target_without_dispatch(
     monkeypatch.setattr(
         scans_endpoint,
         "run_network_scan",
-        SimpleNamespace(delay=fake_delay),
+        SimpleNamespace(delay=lambda **kwargs: enqueued.append(kwargs)),
     )
 
-    response = client.post(
+    cross_tenant = client.post(
         "/api/v1/scans/network",
         json={"target_id": str(target.id), "ports": [80]},
-        headers=auth_headers,
+        headers=headers,
     )
-    assert response.status_code == 404
-    assert called is False
+    assert cross_tenant.status_code == 404
+    assert enqueued == []
+
+    invalid_ports = client.post(
+        "/api/v1/scans/network",
+        json={"target_id": str(own_target.id), "ports": [0, 443]},
+        headers=headers,
+    )
+    assert invalid_ports.status_code == 422
+    assert enqueued == []
