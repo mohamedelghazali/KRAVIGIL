@@ -1,20 +1,18 @@
 import uuid
 import logging
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 from backend.database.models.agent_task import AgentTask
 from backend.database.models.agent import Agent
 from backend.database.models.scan import Scan
 from backend.database.models.observation import Observation
-from backend.database.models.user import User
-from backend.database.tenant import get_tenant_db
+from backend.database.session import get_db
+from backend.security.agent_auth import get_authenticated_agent
 from backend.core.exceptions import KravigilException
-from backend.services.normalization.normalizer import Normalizer
 from backend.core.audit_service import AuditService
 from pydantic import BaseModel
-import json
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -35,19 +33,9 @@ class TaskResultSubmit(BaseModel):
 
 @router.get("/poll", response_model=List[TaskResponse])
 def poll_tasks(
-    request: Request,
-    db: Session = Depends(get_tenant_db)
+    agent: Agent = Depends(get_authenticated_agent),
+    db: Session = Depends(get_db),
 ):
-    cert_fingerprint = request.headers.get("X-Agent-Fingerprint")
-    if not cert_fingerprint:
-        raise HTTPException(status_code=401, detail="Agent fingerprint missing")
-
-    agent = db.query(Agent).filter(
-        Agent.certificate_fingerprint == cert_fingerprint,
-        Agent.status != "REVOKED",
-    ).first()
-    if not agent:
-        raise HTTPException(status_code=401, detail="Agent not found or revoked")
 
     tasks = db.query(AgentTask).filter(
         AgentTask.agent_id == agent.id,
@@ -66,19 +54,9 @@ def poll_tasks(
 def submit_task_result(
     task_id: uuid.UUID,
     result_in: TaskResultSubmit,
-    request: Request,
-    db: Session = Depends(get_tenant_db)
+    agent: Agent = Depends(get_authenticated_agent),
+    db: Session = Depends(get_db),
 ):
-    cert_fingerprint = request.headers.get("X-Agent-Fingerprint")
-    if not cert_fingerprint:
-        raise HTTPException(status_code=401, detail="Agent fingerprint missing")
-
-    agent = db.query(Agent).filter(
-        Agent.certificate_fingerprint == cert_fingerprint,
-        Agent.status != "REVOKED",
-    ).first()
-    if not agent:
-        raise HTTPException(status_code=401, detail="Agent not found or revoked")
 
     task = db.query(AgentTask).filter(
         AgentTask.id == task_id,
