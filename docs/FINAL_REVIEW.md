@@ -138,3 +138,11 @@ A green CI run is necessary but not sufficient. Reassess this document after eve
 - PR #24 fixed report generation's invalid `Finding.scan_id` lookup by joining findings through tenant-scoped observations. It added report extraction/PDF orchestration tests. PR #24 CI `41849313111`, security `41849313667`, and all three images `41849313242` passed; note that integration tests were not included in that CI command.
 - PR #25 expands the CI backend command to run unit, integration, regression, and security tests, repairs the network scan pipeline integration test, and adds scan tenant/port/cloud-provider tests. Its integration/backend tests and image workflow are still running; Ruff/MyPy, frontend, C++, and Gitleaks have passed.
 - Inventory: 21 implemented, 54 safely de-scoped, 12 open. Production remains **NO-GO** pending the final security workstream, performance/regression tests, storage provider acceptance, and production/restore validation.
+
+
+## Schema drift discovered by PostgreSQL regression — 2026-11-04
+
+- The `Scan` ORM and API/worker task dispatch paths use `scans.task_id`, but the production Alembic chain through revision `0007_api_key_owner` did not create that column.
+- Revision `0008_scan_task_id` adds the nullable `VARCHAR(255)` column without changing existing scan records.
+- The PostgreSQL false-positive correlation regression now exercises the migrated schema, rather than relying only on SQLite fixtures.
+- CI also validates the production Compose overlay and `scripts/deploy_prod.sh` syntax. Production remains NO-GO until provider/restore acceptance and full CI evidence are complete.
