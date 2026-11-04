@@ -19,9 +19,9 @@
 | ID | Workstream | Required closure evidence | Current status |
 |---|---|---|---|
 | W0 | Baseline and inventory | Exact base SHA, complete scaffold inventory, current workflows and required checks recorded | In progress |
-| W1 | Scaffold disposition (87 files) | Every file implemented with focused tests, or safely de-scoped with zero runtime references; issue #1 checklist reconciled | Blocked |
+| W1 | Scaffold disposition (87 files) | Every file implemented with focused tests, or safely de-scoped with zero runtime references; issue #1 checklist reconciled | In progress — severity/status enums and focused tests added; CI and integration pending |
 | W2 | Core integration | API, DB models/repositories, schemas, services, workers, scanner adapters, and UI contracts exercised end-to-end | Not started |
-| W3 | CI and code quality | Backend tests, migrations/RLS, Ruff, MyPy, Black, frontend locked install/build, C++ tests, secret/dependency/security scans all pass on one SHA | Not verified |
+| W3 | CI and code quality | Backend tests, migrations/RLS, Ruff, MyPy, Black, frontend locked install/build, C++ tests, secret/dependency/security scans all pass on one SHA | In progress — Gitleaks shallow-checkout failure diagnosed and fixed on execution branch; rerun pending |
 | W4 | Container supply chain | Backend, worker, and network-engine images independently build and publish/verify on the same SHA; pinned base/runtime images | Not verified |
 | W5 | Production storage | Supported S3-compatible provider selected; Compose, replication, backup, retention, TLS, IAM and restore tested against it | Blocked by provider/operations decision |
 | W6 | Production security and operations | Tenant isolation across API/workers, secrets/rotation, HTTPS/cert renewal, queue recovery, monitoring/alerts, runbooks, resource/load tests | Not executed |
@@ -56,3 +56,9 @@ Each batch must include caller compatibility, negative/boundary tests, and a ref
 ## Current release decision
 
 **NO-GO.** The repository review currently identifies 87 explicit Python scaffolds, unresolved production object storage, incomplete image-workflow evidence, and unexecuted production/restore acceptance. This plan does not change that decision. The release gate changes to GO only when every applicable workstream above has verifiable evidence on the same candidate commit and independent review has approved it.
+
+## Execution log
+
+- 2026-11-04: Created `release/closure-execution` from the reviewed `main` baseline and opened draft PR #2.
+- 2026-11-04: Implemented the canonical severity and lifecycle enums in `shared/enums/severity.py` and `shared/enums/status.py`; added focused unit tests in `tests/unit/test_shared_enums.py`. These remain pending CI and caller-integration acceptance and are not yet counted as closed issue #1 entries.
+- 2026-11-04: Diagnosed the initial Gitleaks job failure as an incomplete shallow checkout (the action could not resolve the PR base commit range; no secret finding was reported in that failed run). Updated `.github/workflows/security-scan.yml` to fetch full history. The corrected workflow result is pending.
