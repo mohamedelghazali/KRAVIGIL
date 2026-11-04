@@ -266,6 +266,6 @@ def test_agent_cannot_submit_another_agents_task(client, db_session):
         json={"status": "COMPLETED", "observations": []},
     )
 
-    assert response.status_code == 404
+    assert response.status_code == 401
     db_session.refresh(task)
     assert task.status == "DISPATCHED"
