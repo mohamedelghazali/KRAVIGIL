@@ -27,7 +27,7 @@ Set:
 - `ALLOWED_ORIGINS=["https://your-real-domain.example"]`
 - `ADMIN_EMAIL` and a unique strong `ADMIN_PASSWORD`
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and `SMTP_FROM_ADDRESS`
-- `MINIO_SOURCE_USER/PASSWORD` and `MINIO_TARGET_USER/PASSWORD`
+- `MINIO_USER`/`MINIO_PASSWORD` for the local primary object store, plus `MINIO_TARGET_URL=https://...`, `MINIO_TARGET_USER`, and `MINIO_TARGET_PASSWORD` for a remote S3-compatible replication target
 
 `GEMINI_API_KEY` and `OTX_API_KEY` are optional. AI analysis requires Gemini; threat-intelligence synchronization requires OTX.
 
@@ -107,7 +107,7 @@ From the repository root:
 ./scripts/go_live.sh
 ```
 
-The script validates secrets and certificates, builds images, starts healthy dependencies, configures and verifies MinIO replication for evidence and backup buckets, applies Alembic migrations with the database administrator, seeds the initial administrator, provisions a non-superuser `kravigil_app` role, and runs the API and workers with that role so PostgreSQL row-level security is actually enforced. It then starts the remaining services, including encrypted PostgreSQL backups, and checks the HTTPS system-health endpoint.
+The script validates secrets and certificates, requires an off-host HTTPS S3-compatible replication target, builds images, starts healthy dependencies, configures and verifies replication for evidence and backup buckets, applies Alembic migrations with the database administrator, seeds the initial administrator, provisions a non-superuser `kravigil_app` role, and runs the API and workers with that role so PostgreSQL row-level security is actually enforced. It then starts the remaining services, including encrypted PostgreSQL backups, and checks the HTTPS system-health endpoint. The temporary replication client is attached to both the internal data network and the egress-enabled control network; the database/data network itself remains internal.
 
 The script does not perform a production deployment from this chat. Run it on the intended host after reviewing the configuration.
 
@@ -122,7 +122,7 @@ Before opening public access:
 5. Wait for the first encrypted PostgreSQL backup to finish and confirm the backup container is healthy. Verify MinIO replication for both evidence and backup buckets.
 6. Restore a backup into an isolated PostgreSQL database: download the `.dump.gpg` object and its `.sha256` sidecar, run `sha256sum -c`, decrypt with `gpg --batch --pinentry-mode loopback --passphrase-file "$BACKUP_PASSPHRASE_FILE" --output restore.dump --decrypt backup.dump.gpg`, then validate with `pg_restore --list` before restoring with `pg_restore --clean --if-exists --no-owner --no-acl`. Never test restore against the live production database.
 7. Verify evidence objects and their SHA-256 hashes after replication and restore.
-8. Confirm MinIO versioning and replication state rather than assuming they are enabled by the Compose file. The bundled target MinIO runs on the same host by default; move it to a separate failure domain for genuine off-host disaster recovery.
+8. Confirm bucket versioning and replication state on the remote target. The production overlay no longer starts a second MinIO container on the same host; deployment refuses local/placeholder targets and requires an HTTPS endpoint. Confirm the provider's replication target is in a separate account/region/failure domain and configure provider-side Object Lock/retention where required.
 9. Review firewall rules; expose only the intended HTTPS entry point. Do not publish PostgreSQL, Redis, MinIO, Grafana or the gRPC engine directly.
 
 ## 6. Operational cautions
