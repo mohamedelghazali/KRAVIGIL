@@ -12,6 +12,7 @@ RUN pip install --no-cache-dir minio==7.2.20
 
 WORKDIR /opt/kravigil-backup
 COPY infrastructure/backup/pg_backup.py /opt/kravigil-backup/pg_backup.py
+COPY infrastructure/backup/pg_restore.py /opt/kravigil-backup/pg_restore.py
 RUN useradd --system --create-home --shell /usr/sbin/nologin backup \
     && chown -R backup:backup /opt/kravigil-backup
 USER backup
