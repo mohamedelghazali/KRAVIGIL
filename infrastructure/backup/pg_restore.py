@@ -122,7 +122,7 @@ def run_restore() -> str:
         subprocess.run(
             [
                 "pg_restore", "--clean", "--if-exists", "--no-owner", "--no-acl",
-                "--exit-on-error", "--single-transaction",
+                "--exit-on-error", "--no-password", "--single-transaction",
                 "--host", target_host, "--port", target_port,
                 "--username", target_user, "--dbname", target_db_name,
                 str(raw_dump),
