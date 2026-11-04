@@ -72,7 +72,7 @@ def update_asset(
     current_user: User = Depends(require_role(["admin", "analyst"])),
     db: Session = Depends(get_tenant_db)
 ):
-    asset = db.query(Asset).filter(Asset.id == asset_id).first()
+    asset = db.query(Asset).filter(Asset.id == asset_id, Asset.tenant_id == current_user.tenant_id).first()
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
 
