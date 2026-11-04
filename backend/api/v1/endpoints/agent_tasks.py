@@ -51,7 +51,8 @@ def poll_tasks(
 
     tasks = db.query(AgentTask).filter(
         AgentTask.agent_id == agent.id,
-        AgentTask.status == "PENDING"
+        AgentTask.tenant_id == agent.tenant_id,
+        AgentTask.status == "PENDING",
     ).limit(5).all()
 
     for task in tasks:
@@ -89,6 +90,8 @@ def submit_task_result(
 
     if task.status != "DISPATCHED":
         raise HTTPException(status_code=400, detail="Task is not in dispatched state")
+    if result_in.status not in {"COMPLETED", "FAILED"}:
+        raise HTTPException(status_code=422, detail="Unsupported agent task result status")
 
     try:
         task.status = result_in.status
