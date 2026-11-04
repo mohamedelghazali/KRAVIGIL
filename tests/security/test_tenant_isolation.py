@@ -10,6 +10,7 @@ from backend.database.models.asset import Asset
 from backend.database.models.finding import Finding
 from backend.database.models.scan import Scan
 from backend.database.models.target import Target
+from backend.database.models.threat_intel import ThreatIndicator
 from backend.core import audit_service
 from backend.database.models.user import Organization, User
 from tests.conftest import TestingSessionLocal
@@ -269,3 +270,64 @@ def test_agent_cannot_submit_another_agents_task(client, db_session):
     assert response.status_code == 401
     db_session.refresh(task)
     assert task.status == "DISPATCHED"
+
+
+
+def test_threat_intelligence_is_scoped_to_authenticated_tenant(client, db_session):
+    tenant_a, tenant_b = uuid.uuid4(), uuid.uuid4()
+    user_a = User(
+        id=uuid.uuid4(),
+        tenant_id=tenant_a,
+        email=f"intel-a-{tenant_a}@example.test",
+        hashed_password="test-only-hash",
+        role="admin",
+        is_active=True,
+    )
+    user_b = User(
+        id=uuid.uuid4(),
+        tenant_id=tenant_b,
+        email=f"intel-b-{tenant_b}@example.test",
+        hashed_password="test-only-hash",
+        role="admin",
+        is_active=True,
+    )
+    indicator_a = ThreatIndicator(
+        id=uuid.uuid4(),
+        tenant_id=tenant_a,
+        indicator_type="IPv4",
+        indicator_value="192.0.2.101",
+        threat_type="test-a",
+        source="test",
+        raw_data={},
+    )
+    indicator_b = ThreatIndicator(
+        id=uuid.uuid4(),
+        tenant_id=tenant_b,
+        indicator_type="IPv4",
+        indicator_value="192.0.2.202",
+        threat_type="test-b",
+        source="test",
+        raw_data={},
+    )
+    db_session.add_all([
+        Organization(id=tenant_a, name=f"IntelOrgA-{tenant_a}"),
+        Organization(id=tenant_b, name=f"IntelOrgB-{tenant_b}"),
+        user_a,
+        user_b,
+        indicator_a,
+        indicator_b,
+    ])
+    db_session.commit()
+
+    token_a = security_service.create_access_token(
+        {"sub": str(user_a.id), "tenant": str(tenant_a), "role": "admin"}
+    )
+    response = client.get(
+        "/api/v1/threat-intel/",
+        headers={"Authorization": f"Bearer {token_a}"},
+    )
+
+    assert response.status_code == 200
+    assert {item["indicator_value"] for item in response.json()} == {
+        "192.0.2.101"
+    }
