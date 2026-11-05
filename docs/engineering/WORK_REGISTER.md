@@ -45,7 +45,7 @@ A work item must include: ID, symptom/root cause, owner branch/PR, affected comp
 | KV-006 | Reproducible frontend dependency install | IN_PROGRESS — PR #67 | npm generated `frontend/package-lock.json` in network-enabled GitHub Actions run `42059936652` (lockfileVersion 3; 111 package entries). This PR switches CI, release validation, and the frontend Docker build to `npm ci`, and aligns the Docker build stage to Node 20. Verify clean install/build and all required workflows on the exact PR head before closure. |
 | KV-007 | Backup and restore validation | BLOCKED — operational | Scripts and runbook exist. A real isolated restore from the off-host replica, including evidence object hash checks and application smoke tests, has not been evidenced. Requires authorized staging/recovery infrastructure and independently escrowed key. |
 | KV-008 | Staging deployment and runtime acceptance | BLOCKED — operational | No verified live staging deployment evidence is recorded. Validate scheduler ticks, worker execution, database, Redis, MinIO/S3, health, auth/MFA, scan/report/evidence workflows, logs and alerts. |
-| KV-009 | Performance and capacity acceptance | OPEN | Define workload profile and SLOs; run API/worker/queue/database/object-storage load tests; record p95/p99 latency, throughput, error rate, resource use and saturation. |
+| KV-009 | Performance and capacity acceptance | IN_PROGRESS — PR #69 | Added a bounded read-only API load runner with percentile/error/throughput JSON output and safety allowlist, plus focused unit tests and a capacity acceptance runbook. Provisional smoke thresholds are not approved SLOs. Real representative load tests remain blocked on staging topology, synthetic tenant data, resource metrics, and service-owner-approved workload/SLOs. |
 | KV-010 | Production storage and recovery decisions | BLOCKED — decision | Select provider and document TLS, IAM, residency, replication, retention/Object Lock, backup target, RPO/RTO, cost, and recovery ownership. Do not infer these choices from Compose defaults. |
 | KV-011 | Release security review | DEFERRED — final phase | Run comprehensive threat-model and security review after functional, tenant, staging, recovery and performance gates are closed. Routine CI security scans remain mandatory throughout. |
 | KV-012 | Branch protection / merge governance | OPEN — repository setting | Verify required checks and review rules on `main`. Configuration must be changed in repository settings by an authorized maintainer; code changes cannot substitute for this setting. |
@@ -137,3 +137,13 @@ This process is designed to make progress cumulative and auditable, not to elimi
 **Generated lockfile:** `frontend/package-lock.json`, lockfileVersion 3, 111 package entries.  
 **Implementation:** CI and release validation use `npm ci`; `frontend/Dockerfile` uses `node:20-alpine` and `npm ci`. The temporary lockfile-generation workflow is removed from the PR branch.  
 **Acceptance:** clean `npm ci` plus `npm run build` must pass in CI and Docker image build verification on the exact PR head; all required CI, Security, and Docker workflows must pass before merge. KV-006 remains open until those results are recorded and the PR is merged.
+
+
+## 4.6 Performance and capacity baseline — implementation in progress
+
+**Owner PR:** [#69 — Add a bounded API performance baseline harness](https://github.com/mohamedelghazali/KRAVIGIL/pull/69)  
+**Scope:** Read-only API load runner, safe endpoint allowlist, JSON latency/error/throughput report, focused validation tests, and performance acceptance runbook.
+
+The harness is intentionally bounded to `/health`, `/api/v1/system/version`, and authenticated tenant-scoped `/api/v1/targets/` GET requests. It rejects mutating routes and remote plain HTTP, requires a bearer token for tenant data, does not retry, and caps request rate at 15/s. The provisional p95/error thresholds are smoke checks, not approved service SLOs.
+
+**Not yet evidenced:** representative staging load, p95/p99 under realistic workload, worker/queue saturation, database and object-storage capacity, host/container resource utilization, or recovery under load. KV-009 remains open until those operational measurements and approved SLOs exist.
