@@ -36,6 +36,8 @@ def validate_target(base_url: str, path: str, token: str | None) -> str:
         raise ValueError("base URL must be an absolute HTTP(S) URL")
     if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
         raise ValueError("base URL must not contain a path, query, or fragment")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError("credentials must not be embedded in the base URL")
     if parsed.scheme != "https" and parsed.hostname not in {"localhost", "127.0.0.1", "::1"}:
         raise ValueError("HTTP is permitted only for localhost; use HTTPS for remote targets")
     if path not in ALLOWED_PATHS:
@@ -145,12 +147,17 @@ async def async_main(args: argparse.Namespace) -> int:
         raise ValueError(f"duration must be between 1 and {MAX_DURATION_SECONDS} seconds")
     if not 1 <= args.concurrency <= MAX_CONCURRENCY:
         raise ValueError(f"concurrency must be between 1 and {MAX_CONCURRENCY}")
-    if not 0 < args.requests_per_second <= MAX_REQUESTS_PER_SECOND:
-        raise ValueError(f"request rate must be greater than 0 and at most {MAX_REQUESTS_PER_SECOND}")
-    if not 0.1 <= args.timeout_seconds <= 120:
-        raise ValueError("timeout must be between 0.1 and 120 seconds")
-    if not 0 <= args.max_error_rate_percent <= 100 or args.max_p95_ms <= 0:
-        raise ValueError("acceptance thresholds are invalid")
+    if not math.isfinite(args.requests_per_second) or not 0 < args.requests_per_second <= MAX_REQUESTS_PER_SECOND:
+        raise ValueError(f"request rate must be finite, greater than 0, and at most {MAX_REQUESTS_PER_SECOND}")
+    if not math.isfinite(args.timeout_seconds) or not 0.1 <= args.timeout_seconds <= 120:
+        raise ValueError("timeout must be finite and between 0.1 and 120 seconds")
+    if (
+        not math.isfinite(args.max_error_rate_percent)
+        or not math.isfinite(args.max_p95_ms)
+        or not 0 <= args.max_error_rate_percent <= 100
+        or args.max_p95_ms <= 0
+    ):
+        raise ValueError("acceptance thresholds must be finite and within valid ranges")
 
     token = os.getenv("KRAVIGIL_BEARER_TOKEN")
     url = validate_target(args.base_url, args.path, token)
