@@ -45,7 +45,7 @@ A work item must include: ID, symptom/root cause, owner branch/PR, affected comp
 | KV-006 | Reproducible frontend dependency install | CLOSED — code/CI | PR #67 merged as `36c9c16f5d369e034df7c9e14f80da789042cce7`; tested head `cd53ada111dd0b70eae6c0d1caa0095e74af8cd6`. npm-generated v3 lockfile (111 package entries); CI/release/Docker use `npm ci`; frontend Docker build aligned to Node 20. CI `42060470533`, Security `42060470450`, Docker `42060470492` all passed on exact head. Runtime deployment acceptance remains KV-008. |
 | KV-007 | Backup and restore validation | BLOCKED — operational | Scripts and runbook exist. A real isolated restore from the off-host replica, including evidence object hash checks and application smoke tests, has not been evidenced. Requires authorized staging/recovery infrastructure and independently escrowed key. |
 | KV-008 | Staging deployment and runtime acceptance | BLOCKED — operational | No verified live staging deployment evidence is recorded. Validate scheduler ticks, worker execution, database, Redis, MinIO/S3, health, auth/MFA, scan/report/evidence workflows, logs and alerts. |
-| KV-009 | Performance and capacity acceptance | OPEN | Define workload profile and SLOs; run API/worker/queue/database/object-storage load tests; record p95/p99 latency, throughput, error rate, resource use and saturation. |
+| KV-009 | Performance and capacity acceptance | IN_PROGRESS — PR #69 | Added a bounded read-only API load runner with percentile/error/throughput JSON output and safety allowlist, plus focused unit tests and a capacity acceptance runbook. Provisional smoke thresholds are not approved SLOs. Real representative load tests remain blocked on staging topology, synthetic tenant data, resource metrics, and service-owner-approved workload/SLOs. |
 | KV-010 | Production storage and recovery decisions | BLOCKED — decision | Select provider and document TLS, IAM, residency, replication, retention/Object Lock, backup target, RPO/RTO, cost, and recovery ownership. Do not infer these choices from Compose defaults. |
 | KV-011 | Release security review | DEFERRED — final phase | Run comprehensive threat-model and security review after functional, tenant, staging, recovery and performance gates are closed. Routine CI security scans remain mandatory throughout. |
 | KV-012 | Branch protection / merge governance | OPEN — repository setting | Verify required checks and review rules on `main`. Configuration must be changed in repository settings by an authorized maintainer; code changes cannot substitute for this setting. |
@@ -155,3 +155,13 @@ The npm lockfile was generated in GitHub Actions run `42059936652` with Node 20 
 | Docker Image Build Verification | `42060470492` | `cd53ada111dd0b70eae6c0d1caa0095e74af8cd6` | Passed — backend, worker, network-engine, frontend images |
 
 KV-006 is closed for code/CI. This does not substitute for live staging/runtime acceptance under KV-008.
+
+
+## 4.6 Performance and capacity baseline — implementation in progress
+
+**Owner PR:** [#69 — Add a bounded API performance baseline harness](https://github.com/mohamedelghazali/KRAVIGIL/pull/69)  
+**Scope:** Read-only API load runner, safe endpoint allowlist, JSON latency/error/throughput report, focused validation tests, and performance acceptance runbook.
+
+The harness is intentionally bounded to `/health`, `/api/v1/system/version`, and authenticated tenant-scoped `/api/v1/targets/` GET requests. It rejects mutating routes and remote plain HTTP, requires a bearer token for tenant data, does not retry, and caps request rate at 15/s. The provisional p95/error thresholds are smoke checks, not approved service SLOs.
+
+**Not yet evidenced:** representative staging load, p95/p99 under realistic workload, worker/queue saturation, database and object-storage capacity, host/container resource utilization, or recovery under load. KV-009 remains open until those operational measurements and approved SLOs exist.
