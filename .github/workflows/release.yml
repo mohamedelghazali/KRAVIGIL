@@ -107,6 +107,7 @@ jobs:
           ghcr.io/${{ github.repository }}/kravigil-backend
           ghcr.io/${{ github.repository }}/kravigil-worker
           ghcr.io/${{ github.repository }}/kravigil-network-engine
+          ghcr.io/${{ github.repository }}/kravigil-frontend
         tags: |
           type=semver,pattern={{version}}
           type=semver,pattern={{major}}.{{minor}}
@@ -135,3 +136,11 @@ jobs:
         file: ./engines/network_cpp/Dockerfile
         push: true
         tags: ghcr.io/${{ github.repository }}/kravigil-network-engine:${{ github.ref_name }}
+
+    - name: Build and push Frontend
+      uses: docker/build-push-action@v4
+      with:
+        context: ./frontend
+        file: ./frontend/Dockerfile
+        push: true
+        tags: ghcr.io/${{ github.repository }}/kravigil-frontend:${{ github.ref_name }}
