@@ -39,6 +39,10 @@ jobs:
             file: ./frontend/Dockerfile
             context: ./frontend
             tag: kravigil-frontend:ci
+          - name: backup
+            file: ./infrastructure/backup/Dockerfile
+            context: .
+            tag: kravigil-backup:ci
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
