@@ -138,7 +138,7 @@ jobs:
       with:
         node-version: "20"
     - name: Install dependencies
-      run: npm install --no-audit --no-fund
+      run: npm ci --no-audit --no-fund
     - name: Build frontend
       run: npm run build
 
@@ -158,3 +158,5 @@ jobs:
       run: docker build -f engines/network_cpp/Dockerfile -t kravigil-network-engine:ci .
     - name: Build worker image
       run: docker build -f infrastructure/docker/worker.Dockerfile -t kravigil-worker:ci .
+    - name: Build frontend image
+      run: docker build -f frontend/Dockerfile -t kravigil-frontend:ci frontend
