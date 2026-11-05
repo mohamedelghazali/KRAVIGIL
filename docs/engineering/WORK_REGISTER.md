@@ -2,7 +2,7 @@
 
 **Purpose:** Single source of truth for release work, issue closure, and regression prevention.  
 **Last reconciled:** 2026-11-05  
-**Baseline under review:** `09759a6d91a7f1a0dbf4158c684f0914625fdc46` (PR #63 head)  
+**Current main SHA:** `528401ac4c6b4da6d57710ba676213f45264afdb` (PR #63 merge commit)  
 **Release decision:** **NO-GO for production** until every applicable release gate below has evidence.
 
 This register supplements the historical [Release Closure Execution Plan](../RELEASE_CLOSURE_PLAN.md). If historical notes conflict with this register, use the latest dated, SHA-specific entry here and preserve the historical log for auditability.
@@ -40,7 +40,7 @@ A work item must include: ID, symptom/root cause, owner branch/PR, affected comp
 | KV-001 | Scan dispatch failure persistence (network/web/cloud/SAST) | CLOSED | PRs #53 and #60 merged; regression tests verify persisted FAILED state and error metadata. |
 | KV-002 | Evidence upload/delete failure consistency | CLOSED | PRs #54 and #59 merged; tests cover post-commit refresh failure, DB commit failure, ambiguous upload cleanup, and retryable tombstones. |
 | KV-003 | Scheduled scan scheduler process | CLOSED — code/CI | PR #61 merged; scheduler service configured with one production replica. Runtime scheduling still requires staging evidence under KV-008. |
-| KV-004 | Automatic retry of pending Evidence deletion tombstones | IN_PROGRESS | PR #62 introduced tenant-scoped periodic reconciliation. PR #63 fixes its MyPy typing failure; do not create a second reconciler. Finish PR #63 validation and merge only when all exact-head required checks pass. |
+| KV-004 | Automatic retry of pending Evidence deletion tombstones | CLOSED — code/CI | PR #62 introduced tenant-scoped periodic reconciliation; PR #63 fixed its MyPy typing failure and merged as `528401ac4c6b4da6d57710ba676213f45264afdb`. All three required workflows passed on PR #63 head. Runtime operation is verified separately under KV-008. |
 | KV-005 | Tenant isolation across API and PostgreSQL RLS | OPEN / PARTIAL | Existing API tenant-isolation tests and PostgreSQL RLS integration test are present. Confirm the RLS test actually executes (not skipped), expand worker/task tenant-boundary coverage, and retain exact CI evidence. |
 | KV-006 | Reproducible frontend dependency install | OPEN | `frontend/package-lock.json` is absent; CI currently uses `npm install`. Generate and verify the lockfile in a network-enabled CI environment, then switch to `npm ci` in a dedicated PR. Never hand-author a lockfile. |
 | KV-007 | Backup and restore validation | BLOCKED — operational | Scripts and runbook exist. A real isolated restore from the off-host replica, including evidence object hash checks and application smoke tests, has not been evidenced. Requires authorized staging/recovery infrastructure and independently escrowed key. |
@@ -50,18 +50,24 @@ A work item must include: ID, symptom/root cause, owner branch/PR, affected comp
 | KV-011 | Release security review | DEFERRED — final phase | Run comprehensive threat-model and security review after functional, tenant, staging, recovery and performance gates are closed. Routine CI security scans remain mandatory throughout. |
 | KV-012 | Branch protection / merge governance | OPEN — repository setting | Verify required checks and review rules on `main`. Configuration must be changed in repository settings by an authorized maintainer; code changes cannot substitute for this setting. |
 
-## 4. PR #63 candidate validation
+## 4. PR #63 — closed with exact-head evidence
 
 **PR:** [#63 — Resolve Evidence reconciler MyPy failure](https://github.com/mohamedelghazali/KRAVIGIL/pull/63)  
-**Head SHA:** `09759a6d91a7f1a0dbf4158c684f0914625fdc46`
+**Tested head SHA:** `09759a6d91a7f1a0dbf4158c684f0914625fdc46`  
+**Merge commit:** `528401ac4c6b4da6d57710ba676213f45264afdb`
 
-| Workflow | Run ID | Observed state at reconciliation |
+| Workflow | Run ID | Final result |
 |---|---:|---|
-| KRAVIGIL CI | `42046894751` | In progress; backend, C++, frontend, lint passed; standard container-build job was still building worker image |
+| KRAVIGIL CI | `42046894751` | Passed — backend, C++, frontend, lint/type checks, container build |
 | Security Scans | `42046894774` | Passed |
-| Docker Image Build Verification | `42046894683` | Passed: backend, worker, network-engine images |
+| Docker Image Build Verification | `42046894683` | Passed — backend, worker, network-engine images |
 
-**Merge gate:** Re-fetch PR and all workflows for the exact head SHA. Merge only when every required run is completed successfully and the PR head has not changed. If any check fails, record the failing job/step and create a child item only if it is a distinct root cause.
+PR #63 was merged only after all three workflows completed successfully and the head SHA was rechecked. The original MyPy failure is closed; do not repeat this repair unless the same type error demonstrably returns.
+
+## 4.1 Documentation work-register PR
+
+**PR:** [#64 — Establish canonical engineering work register](https://github.com/mohamedelghazali/KRAVIGIL/pull/64)  
+This PR contains the register itself. Its exact-head CI, Security, and Docker workflows must pass before merge.
 
 ## 5. Release decision rules
 
