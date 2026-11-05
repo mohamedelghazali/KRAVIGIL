@@ -160,3 +160,5 @@ jobs:
       run: docker build -f infrastructure/docker/worker.Dockerfile -t kravigil-worker:ci .
     - name: Build frontend image
       run: docker build -f frontend/Dockerfile -t kravigil-frontend:ci frontend
+    - name: Build backup image
+      run: docker build -f infrastructure/backup/Dockerfile -t kravigil-backup:ci .
