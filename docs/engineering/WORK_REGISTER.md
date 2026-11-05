@@ -2,7 +2,7 @@
 
 **Purpose:** Single source of truth for release work, issue closure, and regression prevention.  
 **Last reconciled:** 2026-11-05  
-**Current main SHA at reconciliation (2026-11-05):** `fc298258a5b990500938bcab98602ac7704a97c0` (PR #72 merge commit; exact-main CI, Security, and five-image verification passed)  
+**Current main SHA at reconciliation (2026-11-05):** `f67871ea80fd9c3b03d556f46a7b2b39f3f155fa` (PR #74 merge commit; post-merge workflows are being verified)  
 **Release decision:** **NO-GO for production** until every applicable release gate below has evidence.
 
 This register supplements the historical [Release Closure Execution Plan](../RELEASE_CLOSURE_PLAN.md). If historical notes conflict with this register, use the latest dated, SHA-specific entry here and preserve the historical log for auditability.
@@ -219,3 +219,22 @@ The previous Docker backup-image account collision is fixed in the merged image 
 - KV-012 remains open. The branch-protection API read returned HTTP 403 (integration permission unavailable); the previously observed unprotected state must be verified and configured by an authorized repository maintainer in GitHub settings.
 
 **Release decision remains NO-GO.** Green exact-main workflows establish code/CI and image-build status only; they do not establish a deployed staging environment, a recoverable off-host backup, production capacity, or operational ownership.
+
+
+## 4.10 PR #74 disaster-recovery procedure — merged; operational validation pending
+
+**PR:** [#74 — Define operational disaster recovery procedure](https://github.com/mohamedelghazali/KRAVIGIL/pull/74)  
+**Tested PR head:** `25bf09c81f8626d8b415ef967f0edddd2564ee90`  
+**Merge commit / main SHA at this reconciliation:** `f67871ea80fd9c3b03d556f46a7b2b39f3f155fa`
+
+The merged `docs/security/DISASTER_RECOVERY.md` now defines the recovery sequence: off-host backup selection, isolated PostgreSQL restore, restricted-role/RLS validation, separate evidence-object hash verification, isolated application smoke tests, cleanup, and an auditable drill record. It explicitly does not claim that a live restore or staging acceptance has occurred.
+
+| Workflow | Run ID | Exact PR head | Result |
+|---|---:|---|---|
+| KRAVIGIL CI | `42104684052` | `25bf09c81f8626d8b415ef967f0edddd2564ee90` | Passed |
+| Security Scans | `42104684446` | `25bf09c81f8626d8b415ef967f0edddd2564ee90` | Passed |
+| Docker Image Build Verification | `42104684069` | `25bf09c81f8626d8b415ef967f0edddd2564ee90` | Passed |
+
+Post-merge verification on exact `main` SHA `f67871ea80fd9c3b03d556f46a7b2b39f3f155fa` was started; at this reconciliation, Security Scans `42109558356` passed, while KRAVIGIL CI `42109558305` and Docker Image Build Verification `42109558529` were still running. Recheck these runs before treating post-merge validation as complete.
+
+**Operational boundary:** KV-007 remains `BLOCKED` until an authorized off-host restore drill verifies the database, RLS, evidence-object hashes, isolated application workflows, cleanup, and measured RPO/RTO against approved objectives. KV-008 through KV-012 remain open/blocked/deferred as described above. Production remains **NO-GO**.
