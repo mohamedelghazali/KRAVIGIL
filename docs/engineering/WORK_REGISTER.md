@@ -2,7 +2,7 @@
 
 **Purpose:** Single source of truth for release work, issue closure, and regression prevention.  
 **Last reconciled:** 2026-11-05  
-**Current main SHA:** `36c9c16f5d369e034df7c9e14f80da789042cce7` (PR #67 merge commit)  
+**Current main SHA at reconciliation:** `f2926554e1ea0c58befa3b8c60c698e3176de3ea` (PR #69 merge commit; this documentation PR will advance main again)  
 **Release decision:** **NO-GO for production** until every applicable release gate below has evidence.
 
 This register supplements the historical [Release Closure Execution Plan](../RELEASE_CLOSURE_PLAN.md). If historical notes conflict with this register, use the latest dated, SHA-specific entry here and preserve the historical log for auditability.
@@ -45,7 +45,7 @@ A work item must include: ID, symptom/root cause, owner branch/PR, affected comp
 | KV-006 | Reproducible frontend dependency install | CLOSED — code/CI | PR #67 merged as `36c9c16f5d369e034df7c9e14f80da789042cce7`; tested head `cd53ada111dd0b70eae6c0d1caa0095e74af8cd6`. npm-generated v3 lockfile (111 package entries); CI/release/Docker use `npm ci`; frontend Docker build aligned to Node 20. CI `42060470533`, Security `42060470450`, Docker `42060470492` all passed on exact head. Runtime deployment acceptance remains KV-008. |
 | KV-007 | Backup and restore validation | BLOCKED — operational | Scripts and runbook exist. A real isolated restore from the off-host replica, including evidence object hash checks and application smoke tests, has not been evidenced. Requires authorized staging/recovery infrastructure and independently escrowed key. |
 | KV-008 | Staging deployment and runtime acceptance | BLOCKED — operational | No verified live staging deployment evidence is recorded. Validate scheduler ticks, worker execution, database, Redis, MinIO/S3, health, auth/MFA, scan/report/evidence workflows, logs and alerts. |
-| KV-009 | Performance and capacity acceptance | IN_PROGRESS — PR #69 | Added a bounded read-only API load runner with percentile/error/throughput JSON output and safety allowlist, plus focused unit tests and a capacity acceptance runbook. Provisional smoke thresholds are not approved SLOs. Real representative load tests remain blocked on staging topology, synthetic tenant data, resource metrics, and service-owner-approved workload/SLOs. |
+| KV-009 | Performance and capacity acceptance | IN_PROGRESS — implementation merged | PR #69 merged as `f2926554e1ea0c58befa3b8c60c698e3176de3ea`; exact tested head `333126231bedbbe89c82fdaf67b3d7512b84ad4f`. Focused runner tests, CI `42068905894`, Security `42068905643`, and Docker `42068905375` all passed. Harness and runbook are merged; representative staging load, resource/queue/storage telemetry, and approved SLO acceptance remain outstanding. |
 | KV-010 | Production storage and recovery decisions | BLOCKED — decision | Select provider and document TLS, IAM, residency, replication, retention/Object Lock, backup target, RPO/RTO, cost, and recovery ownership. Do not infer these choices from Compose defaults. |
 | KV-011 | Release security review | DEFERRED — final phase | Run comprehensive threat-model and security review after functional, tenant, staging, recovery and performance gates are closed. Routine CI security scans remain mandatory throughout. |
 | KV-012 | Branch protection / merge governance | OPEN — repository setting | Verify required checks and review rules on `main`. Configuration must be changed in repository settings by an authorized maintainer; code changes cannot substitute for this setting. |
@@ -98,6 +98,23 @@ PR #66 merged successfully. Its PostgreSQL integration tests verified the restri
 | Docker Image Build Verification | `42053405413` | Passed |
 
 **Merge commit:** `2a03b26c9d043daa19519cfff992b705bac78c00`. KV-005 is closed for code/CI evidence. Live staging acceptance remains tracked separately under KV-008.
+
+## 4.7 Performance baseline harness — implementation merged, operational acceptance open
+
+**Owner PR:** [#69 — Add a bounded API performance baseline harness](https://github.com/mohamedelghazali/KRAVIGIL/pull/69)  
+**Tested head SHA:** `333126231bedbbe89c82fdaf67b3d7512b84ad4f`  
+**Merge commit / main at reconciliation:** `f2926554e1ea0c58befa3b8c60c698e3176de3ea`  
+**Merged:** 2026-11-05.
+
+The bounded read-only HTTPX runner, endpoint allowlist, JSON latency/error/throughput report, focused unit tests, and capacity runbook are merged. Exact-head checks all passed:
+
+| Workflow | Run ID | Result |
+|---|---:|---|
+| KRAVIGIL CI | `42068905894` | Passed — backend, C++, frontend, lint/type, container build |
+| Security Scans | `42068905643` | Passed — Python security and secret scan |
+| Docker Image Build Verification | `42068905375` | Passed — backend, frontend, network-engine, worker images |
+
+The merge commit was also checked: CI `42072295490`, Security `42072295189`, and Docker `42072295309` all passed. This closes the implementation subtask only. KV-009 remains IN_PROGRESS until representative staging measurements, telemetry, workload profile, and service-owner-approved SLOs are recorded. No live load test is claimed.
 
 ## 5. Release decision rules
 
