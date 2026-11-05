@@ -686,7 +686,7 @@ def reconcile_pending_evidence_deletions(batch_size: int = 100):
         for tenant_id in tenant_ids:
             tenant_uuid = uuid.UUID(str(tenant_id))
             set_worker_tenant(db, tenant_uuid)
-            skipped_ids = []
+            skipped_ids: list[uuid.UUID] = []
             attempted = 0
 
             # Claim one row at a time. Keep its FOR UPDATE lock until
