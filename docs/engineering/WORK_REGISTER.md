@@ -2,7 +2,7 @@
 
 **Purpose:** Single source of truth for release work, issue closure, and regression prevention.  
 **Last reconciled:** 2026-11-05  
-**Current main SHA at start of this release-readiness slice:** `f2926554e1ea0c58befa3b8c60c698e3176de3ea` (PR #69 merge commit; this slice is under verification)  
+**Current main SHA at reconciliation (2026-11-05):** `fc298258a5b990500938bcab98602ac7704a97c0` (PR #72 merge commit; exact-main CI, Security, and five-image verification passed)  
 **Release decision:** **NO-GO for production** until every applicable release gate below has evidence.
 
 This register supplements the historical [Release Closure Execution Plan](../RELEASE_CLOSURE_PLAN.md). If historical notes conflict with this register, use the latest dated, SHA-specific entry here and preserve the historical log for auditability.
@@ -190,3 +190,32 @@ A final deployment-path review found two release defects: the production deploym
 The merged change starts Celery Beat in the production deployment command, publishes frontend and backup images on version-tag releases, includes the backup image in CI/Docker verification, and uses the dedicated `kravigil-backup` service account to avoid the base-image account collision. Regression tests cover the scheduler command, release image references, Docker backup build, and backup service account.
 
 **Operational boundary:** no live staging deployment or scheduler tick evidence is claimed. KV-003 is closed for code/CI only; KV-008 remains blocked pending staging deployment and runtime acceptance. The release remains **NO-GO** until all applicable operational and governance gates in Section 5 are evidenced.
+
+
+## 4.9 Exact-main reconciliation — 2026-11-05
+
+**Current main SHA:** `fc298258a5b990500938bcab98602ac7704a97c0`  
+**Latest merge:** PR [#72 — Reconcile release register after PR #71](https://github.com/mohamedelghazali/KRAVIGIL/pull/72).  
+**Repository state at reconciliation:** no open pull requests; no published GitHub releases. The historical failed Docker workflow on an older PR commit is retained as history and is not the current-main result.
+
+All three required workflows completed successfully on the exact current `main` SHA:
+
+| Workflow | Run ID | Exact SHA | Result |
+|---|---:|---|---|
+| KRAVIGIL CI | [42086368327](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/42086368327) | `fc298258a5b990500938bcab98602ac7704a97c0` | Passed |
+| Security Scans | [42086368382](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/42086368382) | `fc298258a5b990500938bcab98602ac7704a97c0` | Passed |
+| Docker Image Build Verification | [42086368270](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/42086368270) | `fc298258a5b990500938bcab98602ac7704a97c0` | Passed — backend, worker, frontend, backup, and network-engine images |
+
+The previous Docker backup-image account collision is fixed in the merged image definition; the five-image verification above confirms the current-main backup image builds. Do not reopen that repair absent a regression.
+
+### Work-item state remains evidence-bounded
+
+- KV-003 remains closed for code/CI; actual scheduler ticks are still part of KV-008 runtime acceptance.
+- KV-007 remains blocked pending an isolated restore from the off-host replica, evidence-object integrity checks, and application smoke tests.
+- KV-008 remains blocked pending a real staging deployment and runtime acceptance.
+- KV-009 remains open pending representative staging load, resource/queue/storage telemetry, and approved SLOs.
+- KV-010 remains blocked pending accountable production storage, retention, residency, RPO/RTO, and recovery decisions.
+- KV-011 remains deferred to the final security-review phase.
+- KV-012 remains open. The branch-protection API read returned HTTP 403 (integration permission unavailable); the previously observed unprotected state must be verified and configured by an authorized repository maintainer in GitHub settings.
+
+**Release decision remains NO-GO.** Green exact-main workflows establish code/CI and image-build status only; they do not establish a deployed staging environment, a recoverable off-host backup, production capacity, or operational ownership.
