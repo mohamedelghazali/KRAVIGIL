@@ -53,6 +53,7 @@ async def run_load(
     requests_per_second: float,
     timeout_seconds: float,
 ) -> dict[str, Any]:
+    started_at = datetime.now(timezone.utc).isoformat()
     loop = asyncio.get_running_loop()
     started = loop.time()
     deadline = started + duration_seconds
@@ -102,7 +103,7 @@ async def run_load(
     failed = sum(failures.values())
     successful = completed - failed
     return {
-        "started_at": datetime.now(timezone.utc).isoformat(),
+        "started_at": started_at,
         "target_path": urlparse(url).path,
         "duration_seconds": round(elapsed, 3),
         "configured_concurrency": concurrency,
