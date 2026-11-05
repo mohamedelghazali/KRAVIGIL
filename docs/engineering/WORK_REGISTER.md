@@ -2,7 +2,7 @@
 
 **Purpose:** Single source of truth for release work, issue closure, and regression prevention.  
 **Last reconciled:** 2026-11-05  
-**Current main SHA at reconciliation (2026-11-05):** `f67871ea80fd9c3b03d556f46a7b2b39f3f155fa` (PR #74 merge commit; post-merge workflows are being verified)  
+**Current main SHA at reconciliation (2026-11-05):** `5b162cf87203126b3f56f33ea71cf325602ee2ad` (PR #75 merge commit; CI, Security, and Docker workflows passed on this exact main SHA)  
 **Release decision:** **NO-GO for production** until every applicable release gate below has evidence.
 
 This register supplements the historical [Release Closure Execution Plan](../RELEASE_CLOSURE_PLAN.md). If historical notes conflict with this register, use the latest dated, SHA-specific entry here and preserve the historical log for auditability.
@@ -238,3 +238,14 @@ The merged `docs/security/DISASTER_RECOVERY.md` now defines the recovery sequenc
 Post-merge verification on exact `main` SHA `f67871ea80fd9c3b03d556f46a7b2b39f3f155fa` was started; at this reconciliation, Security Scans `42109558356` passed, while KRAVIGIL CI `42109558305` and Docker Image Build Verification `42109558529` were still running. Recheck these runs before treating post-merge validation as complete.
 
 **Operational boundary:** KV-007 remains `BLOCKED` until an authorized off-host restore drill verifies the database, RLS, evidence-object hashes, isolated application workflows, cleanup, and measured RPO/RTO against approved objectives. KV-008 through KV-012 remain open/blocked/deferred as described above. Production remains **NO-GO**.
+
+
+## 4.11 PR #75 work-register reconciliation — merged
+
+**PR:** [#75 — Reconcile work register after PR #74](https://github.com/mohamedelghazali/KRAVIGIL/pull/75)  
+**Tested PR head:** `fa076f4d0410437e81bd86e2dff17460b2938628`  
+**Merge commit / current main SHA:** `5b162cf87203126b3f56f33ea71cf325602ee2ad`
+
+All three required workflows passed on the exact PR head: KRAVIGIL CI `42109875150`, Security Scans `42109875265`, and Docker Image Build Verification `42109875153`. All three post-merge workflows also passed on the exact current `main` SHA: KRAVIGIL CI `42110018828`, Security Scans `42110018984`, and Docker Image Build Verification `42110018858`.
+
+This entry supersedes the earlier PR #74 reconciliation as the current-main baseline. It does not change any operational acceptance state: KV-007 remains blocked pending a real off-host restore drill; KV-008 remains blocked pending staging runtime evidence; KV-009 remains open pending representative staging load, telemetry, and approved SLOs; KV-010 remains blocked pending production storage/recovery decisions; KV-011 remains deferred; KV-012 remains open pending verified branch protection. Production remains **NO-GO**.
