@@ -2,7 +2,7 @@
 
 **Purpose:** Single source of truth for release work, issue closure, and regression prevention.  
 **Last reconciled:** 2026-11-05  
-**Current main SHA:** `ed24daf1d7dc840f9e0bbb8d03f99e349e459275` (latest verified main before KV-006)  
+**Current main SHA:** `36c9c16f5d369e034df7c9e14f80da789042cce7` (PR #67 merge commit)  
 **Release decision:** **NO-GO for production** until every applicable release gate below has evidence.
 
 This register supplements the historical [Release Closure Execution Plan](../RELEASE_CLOSURE_PLAN.md). If historical notes conflict with this register, use the latest dated, SHA-specific entry here and preserve the historical log for auditability.
@@ -42,7 +42,7 @@ A work item must include: ID, symptom/root cause, owner branch/PR, affected comp
 | KV-003 | Scheduled scan scheduler process | CLOSED — code/CI | PR #61 merged; scheduler service configured with one production replica. Runtime scheduling still requires staging evidence under KV-008. |
 | KV-004 | Automatic retry of pending Evidence deletion tombstones | CLOSED — code/CI | PR #62 introduced tenant-scoped periodic reconciliation; PR #63 fixed its MyPy typing failure and merged as `528401ac4c6b4da6d57710ba676213f45264afdb`. All three required workflows passed on PR #63 head. Runtime operation is verified separately under KV-008. |
 | KV-005 | Tenant isolation across API and PostgreSQL RLS | CLOSED — code/CI | PR #66 merged as `2a03b26c9d043daa19519cfff992b705bac78c00`; tested head `8a35d8faafd20a948d3c7cf562520b1b1efe359d`. PostgreSQL RLS integration tests executed (not skipped); 183 backend tests passed. CI `42053405547`, Security `42053405775`, Docker `42053405413` all passed on the exact tested head. API test coverage still includes SQLite; live staging acceptance remains KV-008. |
-| KV-006 | Reproducible frontend dependency install | IN_PROGRESS — PR #67 | npm generated `frontend/package-lock.json` in network-enabled GitHub Actions run `42059936652` (lockfileVersion 3; 111 package entries). This PR switches CI, release validation, and the frontend Docker build to `npm ci`, and aligns the Docker build stage to Node 20. Verify clean install/build and all required workflows on the exact PR head before closure. |
+| KV-006 | Reproducible frontend dependency install | CLOSED — code/CI | PR #67 merged as `36c9c16f5d369e034df7c9e14f80da789042cce7`; tested head `cd53ada111dd0b70eae6c0d1caa0095e74af8cd6`. npm-generated v3 lockfile (111 package entries); CI/release/Docker use `npm ci`; frontend Docker build aligned to Node 20. CI `42060470533`, Security `42060470450`, Docker `42060470492` all passed on exact head. Runtime deployment acceptance remains KV-008. |
 | KV-007 | Backup and restore validation | BLOCKED — operational | Scripts and runbook exist. A real isolated restore from the off-host replica, including evidence object hash checks and application smoke tests, has not been evidenced. Requires authorized staging/recovery infrastructure and independently escrowed key. |
 | KV-008 | Staging deployment and runtime acceptance | BLOCKED — operational | No verified live staging deployment evidence is recorded. Validate scheduler ticks, worker execution, database, Redis, MinIO/S3, health, auth/MFA, scan/report/evidence workflows, logs and alerts. |
 | KV-009 | Performance and capacity acceptance | OPEN | Define workload profile and SLOs; run API/worker/queue/database/object-storage load tests; record p95/p99 latency, throughput, error rate, resource use and saturation. |
@@ -104,7 +104,7 @@ PR #66 merged successfully. Its PostgreSQL integration tests verified the restri
 Production release is **GO** only when all applicable conditions are true on a reviewed candidate:
 
 - [ ] Required CI, backend tests, migrations, RLS, lint/type checks, frontend build, C++ tests, security scans, and all production images pass on the candidate SHA.
-- [ ] Frontend dependency installation is deterministic and lockfile-backed.
+- [x] Frontend dependency installation is deterministic and lockfile-backed (KV-006; PR #67).
 - [ ] Tenant isolation is demonstrated for API, direct database RLS using the restricted application role, and asynchronous workers.
 - [ ] Staging deployment is healthy and scheduled scans demonstrably execute.
 - [ ] A real off-host encrypted backup restore succeeds in an isolated environment; restored DB and evidence objects pass integrity checks.
@@ -137,3 +137,21 @@ This process is designed to make progress cumulative and auditable, not to elimi
 **Generated lockfile:** `frontend/package-lock.json`, lockfileVersion 3, 111 package entries.  
 **Implementation:** CI and release validation use `npm ci`; `frontend/Dockerfile` uses `node:20-alpine` and `npm ci`. The temporary lockfile-generation workflow is removed from the PR branch.  
 **Acceptance:** clean `npm ci` plus `npm run build` must pass in CI and Docker image build verification on the exact PR head; all required CI, Security, and Docker workflows must pass before merge. KV-006 remains open until those results are recorded and the PR is merged.
+
+
+## 4.5 Frontend reproducible dependency installation — closed
+
+**Owner PR:** [#67 — Make frontend dependency installation reproducible](https://github.com/mohamedelghazali/KRAVIGIL/pull/67)  
+**Tested head SHA:** `cd53ada111dd0b70eae6c0d1caa0095e74af8cd6`  
+**Merge commit / current main at closure:** `36c9c16f5d369e034df7c9e14f80da789042cce7`  
+**Merged:** 2026-11-05.
+
+The npm lockfile was generated in GitHub Actions run `42059936652` with Node 20 against the public npm registry. It uses lockfileVersion 3 and contains 111 package entries; all 110 resolved tarball URLs use `registry.npmjs.org` and have integrity hashes. CI, release validation, and the frontend Docker image now use `npm ci`; the Docker build stage uses Node 20. The Docker image verification matrix and main CI also build the frontend image.
+
+| Workflow | Run ID | Exact tested head | Result |
+|---|---:|---|---|
+| KRAVIGIL CI | `42060470533` | `cd53ada111dd0b70eae6c0d1caa0095e74af8cd6` | Passed — backend, C++, frontend, lint/type checks, container build |
+| Security Scans | `42060470450` | `cd53ada111dd0b70eae6c0d1caa0095e74af8cd6` | Passed — Python security and secret scan |
+| Docker Image Build Verification | `42060470492` | `cd53ada111dd0b70eae6c0d1caa0095e74af8cd6` | Passed — backend, worker, network-engine, frontend images |
+
+KV-006 is closed for code/CI. This does not substitute for live staging/runtime acceptance under KV-008.
