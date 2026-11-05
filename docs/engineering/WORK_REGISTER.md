@@ -2,7 +2,7 @@
 
 **Purpose:** Single source of truth for release work, issue closure, and regression prevention.  
 **Last reconciled:** 2026-11-05  
-**Current main SHA:** `36c9c16f5d369e034df7c9e14f80da789042cce7` (PR #67 merge commit)  
+**Current main SHA at start of this release-readiness slice:** `f2926554e1ea0c58befa3b8c60c698e3176de3ea` (PR #69 merge commit; this slice is under verification)  
 **Release decision:** **NO-GO for production** until every applicable release gate below has evidence.
 
 This register supplements the historical [Release Closure Execution Plan](../RELEASE_CLOSURE_PLAN.md). If historical notes conflict with this register, use the latest dated, SHA-specific entry here and preserve the historical log for auditability.
@@ -39,13 +39,13 @@ A work item must include: ID, symptom/root cause, owner branch/PR, affected comp
 |---|---|---|---|
 | KV-001 | Scan dispatch failure persistence (network/web/cloud/SAST) | CLOSED | PRs #53 and #60 merged; regression tests verify persisted FAILED state and error metadata. |
 | KV-002 | Evidence upload/delete failure consistency | CLOSED | PRs #54 and #59 merged; tests cover post-commit refresh failure, DB commit failure, ambiguous upload cleanup, and retryable tombstones. |
-| KV-003 | Scheduled scan scheduler process | CLOSED — code/CI | PR #61 merged; scheduler service configured with one production replica. Runtime scheduling still requires staging evidence under KV-008. |
+| KV-003 | Scheduled scan scheduler process | IN_PROGRESS — deployment orchestration fix | PR #61 added the Beat service, but the production deployment script did not include it in the application startup command. Current release-readiness PR adds scheduler startup and regression coverage; runtime ticks still require staging evidence under KV-008. |
 | KV-004 | Automatic retry of pending Evidence deletion tombstones | CLOSED — code/CI | PR #62 introduced tenant-scoped periodic reconciliation; PR #63 fixed its MyPy typing failure and merged as `528401ac4c6b4da6d57710ba676213f45264afdb`. All three required workflows passed on PR #63 head. Runtime operation is verified separately under KV-008. |
 | KV-005 | Tenant isolation across API and PostgreSQL RLS | CLOSED — code/CI | PR #66 merged as `2a03b26c9d043daa19519cfff992b705bac78c00`; tested head `8a35d8faafd20a948d3c7cf562520b1b1efe359d`. PostgreSQL RLS integration tests executed (not skipped); 183 backend tests passed. CI `42053405547`, Security `42053405775`, Docker `42053405413` all passed on the exact tested head. API test coverage still includes SQLite; live staging acceptance remains KV-008. |
 | KV-006 | Reproducible frontend dependency install | CLOSED — code/CI | PR #67 merged as `36c9c16f5d369e034df7c9e14f80da789042cce7`; tested head `cd53ada111dd0b70eae6c0d1caa0095e74af8cd6`. npm-generated v3 lockfile (111 package entries); CI/release/Docker use `npm ci`; frontend Docker build aligned to Node 20. CI `42060470533`, Security `42060470450`, Docker `42060470492` all passed on exact head. Runtime deployment acceptance remains KV-008. |
 | KV-007 | Backup and restore validation | BLOCKED — operational | Scripts and runbook exist. A real isolated restore from the off-host replica, including evidence object hash checks and application smoke tests, has not been evidenced. Requires authorized staging/recovery infrastructure and independently escrowed key. |
 | KV-008 | Staging deployment and runtime acceptance | BLOCKED — operational | No verified live staging deployment evidence is recorded. Validate scheduler ticks, worker execution, database, Redis, MinIO/S3, health, auth/MFA, scan/report/evidence workflows, logs and alerts. |
-| KV-009 | Performance and capacity acceptance | IN_PROGRESS — PR #69 | Added a bounded read-only API load runner with percentile/error/throughput JSON output and safety allowlist, plus focused unit tests and a capacity acceptance runbook. Provisional smoke thresholds are not approved SLOs. Real representative load tests remain blocked on staging topology, synthetic tenant data, resource metrics, and service-owner-approved workload/SLOs. |
+| KV-009 | Performance and capacity acceptance | IN_PROGRESS — implementation merged | PR #69 merged as `f2926554e1ea0c58befa3b8c60c698e3176de3ea`; exact tested head `333126231bedbbe89c82fdaf67b3d7512b84ad4f`. Focused runner tests, CI `42068905894`, Security `42068905643`, and Docker `42068905375` all passed. Representative staging load, resource/queue/storage telemetry, and approved SLO acceptance remain outstanding. |
 | KV-010 | Production storage and recovery decisions | BLOCKED — decision | Select provider and document TLS, IAM, residency, replication, retention/Object Lock, backup target, RPO/RTO, cost, and recovery ownership. Do not infer these choices from Compose defaults. |
 | KV-011 | Release security review | DEFERRED — final phase | Run comprehensive threat-model and security review after functional, tenant, staging, recovery and performance gates are closed. Routine CI security scans remain mandatory throughout. |
 | KV-012 | Branch protection / merge governance | OPEN — repository setting | Verify required checks and review rules on `main`. Configuration must be changed in repository settings by an authorized maintainer; code changes cannot substitute for this setting. |
@@ -165,3 +165,11 @@ KV-006 is closed for code/CI. This does not substitute for live staging/runtime 
 The harness is intentionally bounded to `/health`, `/api/v1/system/version`, and authenticated tenant-scoped `/api/v1/targets/` GET requests. It rejects mutating routes and remote plain HTTP, requires a bearer token for tenant data, does not retry, and caps request rate at 15/s. The provisional p95/error thresholds are smoke checks, not approved service SLOs.
 
 **Not yet evidenced:** representative staging load, p95/p99 under realistic workload, worker/queue saturation, database and object-storage capacity, host/container resource utilization, or recovery under load. KV-009 remains open until those operational measurements and approved SLOs exist.
+
+
+## 4.7 Release-readiness corrections — in progress
+
+**Owner branch:** `fix/production-release-scheduler-and-frontend-image-2026-11-05`  
+**Base SHA:** `f2926554e1ea0c58befa3b8c60c698e3176de3ea`
+
+A final deployment-path review found two release defects: the production deployment script did not start the configured Celery Beat scheduler, and the tag-triggered release pipeline built/pushed backend, worker, and network-engine images but omitted the frontend image. This change starts the scheduler in the production rollout, publishes the frontend image to GHCR on version tags, and adds regression tests for both contracts. KV-003 remains pending until this change passes exact-head CI and the scheduler is observed executing in staging. Release-image publication is not production deployment by itself.
