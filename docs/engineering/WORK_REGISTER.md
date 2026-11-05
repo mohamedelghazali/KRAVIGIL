@@ -2,7 +2,7 @@
 
 **Purpose:** Single source of truth for release work, issue closure, and regression prevention.  
 **Last reconciled:** 2026-11-05  
-**Current main SHA:** `528401ac4c6b4da6d57710ba676213f45264afdb` (PR #63 merge commit)  
+**Current main SHA:** `1d678d8922a2baae1529555f9c71913f41dc6e30` (PR #65 merge commit)  
 **Release decision:** **NO-GO for production** until every applicable release gate below has evidence.
 
 This register supplements the historical [Release Closure Execution Plan](../RELEASE_CLOSURE_PLAN.md). If historical notes conflict with this register, use the latest dated, SHA-specific entry here and preserve the historical log for auditability.
@@ -41,7 +41,7 @@ A work item must include: ID, symptom/root cause, owner branch/PR, affected comp
 | KV-002 | Evidence upload/delete failure consistency | CLOSED | PRs #54 and #59 merged; tests cover post-commit refresh failure, DB commit failure, ambiguous upload cleanup, and retryable tombstones. |
 | KV-003 | Scheduled scan scheduler process | CLOSED — code/CI | PR #61 merged; scheduler service configured with one production replica. Runtime scheduling still requires staging evidence under KV-008. |
 | KV-004 | Automatic retry of pending Evidence deletion tombstones | CLOSED — code/CI | PR #62 introduced tenant-scoped periodic reconciliation; PR #63 fixed its MyPy typing failure and merged as `528401ac4c6b4da6d57710ba676213f45264afdb`. All three required workflows passed on PR #63 head. Runtime operation is verified separately under KV-008. |
-| KV-005 | Tenant isolation across API and PostgreSQL RLS | OPEN / PARTIAL | Existing API tenant-isolation tests and PostgreSQL RLS integration test are present. Confirm the RLS test actually executes (not skipped), expand worker/task tenant-boundary coverage, and retain exact CI evidence. |
+| KV-005 | Tenant isolation across API and PostgreSQL RLS | IN_PROGRESS | PR #66 adds PostgreSQL assertions for non-superuser/non-BYPASSRLS role, ENABLE/FORCE RLS, cross-tenant read/write/update/delete denial, and Celery worker tenant-context isolation/reset on a reused pooled connection. Existing API tests use SQLite; PostgreSQL integration credentials are configured in CI. Await exact-head CI evidence before closure. |
 | KV-006 | Reproducible frontend dependency install | OPEN | `frontend/package-lock.json` is absent; CI currently uses `npm install`. Generate and verify the lockfile in a network-enabled CI environment, then switch to `npm ci` in a dedicated PR. Never hand-author a lockfile. |
 | KV-007 | Backup and restore validation | BLOCKED — operational | Scripts and runbook exist. A real isolated restore from the off-host replica, including evidence object hash checks and application smoke tests, has not been evidenced. Requires authorized staging/recovery infrastructure and independently escrowed key. |
 | KV-008 | Staging deployment and runtime acceptance | BLOCKED — operational | No verified live staging deployment evidence is recorded. Validate scheduler ticks, worker execution, database, Redis, MinIO/S3, health, auth/MFA, scan/report/evidence workflows, logs and alerts. |
@@ -66,8 +66,30 @@ PR #63 was merged only after all three workflows completed successfully and the 
 
 ## 4.1 Documentation work-register PR
 
+**PR:** [#65 — Establish canonical engineering work register](https://github.com/mohamedelghazali/KRAVIGIL/pull/65)  
+**Tested head SHA:** `9e7a7a68f7b68c41b319c65ba167cf0bcac4f36d`  
+**Merge commit:** `1d678d8922a2baae1529555f9c71913f41dc6e30`
+
+| Workflow | Run ID | Final result |
+|---|---:|---|
+| KRAVIGIL CI | `42048718233` | Passed |
+| Security Scans | `42048718320` | Passed |
+| Docker Image Build Verification | `42048718160` | Passed |
+
+PR #65 is merged. The prior main SHA and PR #63 evidence remain preserved above.
+
+## 4.2 Superseded documentation PR
+
 **PR:** [#64 — Establish canonical engineering work register](https://github.com/mohamedelghazali/KRAVIGIL/pull/64)  
-This PR contains the register itself. Its exact-head CI, Security, and Docker workflows must pass before merge.
+Closed without merge because its branch was based on the pre-squash PR #63 history and had diverged from current main. It must not be reopened; PR #65 is the clean merged replacement.
+
+## 4.3 Tenant-isolation verification
+
+**Owner PR:** [#66 — Verify PostgreSQL RLS and worker tenant context](https://github.com/mohamedelghazali/KRAVIGIL/pull/66)  
+**Branch:** `fix/tenant-rls-worker-isolation-2026-11-05`  
+**Base SHA:** `1d678d8922a2baae1529555f9c71913f41dc6e30`
+
+The candidate strengthens the PostgreSQL integration test and exercises the same tenant-context helpers used by Celery workers. KV-005 remains `IN_PROGRESS` until all required workflows pass on the final candidate SHA and the PostgreSQL test is confirmed as executed rather than skipped.
 
 ## 5. Release decision rules
 
