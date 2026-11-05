@@ -179,7 +179,7 @@ ALTER DEFAULT PRIVILEGES FOR ROLE :"admin_user" IN SCHEMA public
 SQL
 
 echo "[7/8] Starting the application with RLS-enforced credentials..."
-docker compose "${BASE_COMPOSE[@]}" up -d backend worker frontend nginx prometheus grafana backup
+docker compose "${BASE_COMPOSE[@]}" up -d backend worker scheduler frontend nginx prometheus grafana backup
 
 echo "[8/8] Checking application health..."
 HEALTH_RESPONSE="$(curl --fail --silent --show-error "${FRONTEND_URL%/}/api/v1/system/health")"
