@@ -25,13 +25,20 @@ jobs:
         image:
           - name: backend
             file: ./backend/Dockerfile
+            context: .
             tag: kravigil-backend:ci
           - name: worker
             file: ./infrastructure/docker/worker.Dockerfile
+            context: .
             tag: kravigil-worker:ci
           - name: network-engine
             file: ./engines/network_cpp/Dockerfile
+            context: .
             tag: kravigil-network-engine:ci
+          - name: frontend
+            file: ./frontend/Dockerfile
+            context: ./frontend
+            tag: kravigil-frontend:ci
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -42,7 +49,7 @@ jobs:
       - name: Build ${{ matrix.image.name }} image
         uses: docker/build-push-action@v6
         with:
-          context: .
+          context: ${{ matrix.image.context }}
           file: ${{ matrix.image.file }}
           push: false
           tags: ${{ matrix.image.tag }}
