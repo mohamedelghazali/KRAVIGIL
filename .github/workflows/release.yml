@@ -108,6 +108,7 @@ jobs:
           ghcr.io/${{ github.repository }}/kravigil-worker
           ghcr.io/${{ github.repository }}/kravigil-network-engine
           ghcr.io/${{ github.repository }}/kravigil-frontend
+          ghcr.io/${{ github.repository }}/kravigil-backup
         tags: |
           type=semver,pattern={{version}}
           type=semver,pattern={{major}}.{{minor}}
@@ -144,3 +145,11 @@ jobs:
         file: ./frontend/Dockerfile
         push: true
         tags: ghcr.io/${{ github.repository }}/kravigil-frontend:${{ github.ref_name }}
+
+    - name: Build and push Backup
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: ./infrastructure/backup/Dockerfile
+        push: true
+        tags: ghcr.io/${{ github.repository }}/kravigil-backup:${{ github.ref_name }}
