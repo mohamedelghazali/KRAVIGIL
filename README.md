@@ -1,3 +1,7 @@
+**Project Status: Under Active Development**
+
+The project is currently under active development and continuous improvement. Core features are being implemented, components are undergoing validation, identified issues are being addressed, and quality, performance, and security testing are ongoing. The project has not yet reached its final production-ready release.
+
 # KRAVIGIL Core
 
 **Enterprise Vulnerability Assessment & Security Intelligence Platform**
