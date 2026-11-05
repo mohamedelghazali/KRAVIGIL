@@ -34,3 +34,8 @@ def test_local_http_target_is_allowed():
 def test_base_url_with_path_is_rejected():
     with pytest.raises(ValueError, match="must not contain a path"):
         validate_target("https://staging.example/api", "/health", None)
+
+
+def test_base_url_with_embedded_credentials_is_rejected():
+    with pytest.raises(ValueError, match="credentials must not be embedded"):
+        validate_target("https://user:password@staging.example", "/health", None)
