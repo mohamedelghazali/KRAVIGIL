@@ -104,7 +104,7 @@ The deployment script checks the configured NGINX server name and certificate fi
 From the repository root:
 
 ```bash
-./scripts/go_live.sh
+bash scripts/deploy_prod.sh
 ```
 
 The script validates secrets and certificates, requires an off-host HTTPS S3-compatible replication target that supports the MinIO Client replication/lifecycle APIs, builds images, starts healthy dependencies, configures and verifies replication for evidence and backup buckets, applies Alembic migrations with the database administrator, seeds the initial administrator, provisions a non-superuser `kravigil_app` role, and runs the API and workers with that role so PostgreSQL row-level security is actually enforced. It then starts the remaining services, including encrypted PostgreSQL backups, and checks the HTTPS system-health endpoint. The temporary replication client is attached to both the internal data network and the egress-enabled control network; the database/data network itself remains internal.
