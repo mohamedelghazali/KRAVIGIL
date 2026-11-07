@@ -2,7 +2,7 @@
 
 **Purpose:** Single source of truth for release work, issue closure, and regression prevention.  
 **Last reconciled:** 2026-11-07  
-**Current main SHA at reconciliation (2026-11-07):** `3828bf1507ee3652bafd29f474f3a81cf783eff4` (PR #77 merge commit; all three required PR workflows and all three post-merge workflows passed on their exact respective SHAs)  
+**Current main SHA at reconciliation (2026-11-07):** `fed45598a88c409a34e50c16b660815becd3d4a2` (PR #79 merge commit; post-merge CI, Security, and Docker workflows are running and must be reconciled below before closure)  
 **Release decision:** **NO-GO for production** until every applicable release gate below has evidence.
 
 This register supplements the historical [Release Closure Execution Plan](../RELEASE_CLOSURE_PLAN.md). If historical notes conflict with this register, use the latest dated, SHA-specific entry here and preserve the historical log for auditability.
@@ -48,7 +48,7 @@ A work item must include: ID, symptom/root cause, owner branch/PR, affected comp
 | KV-009 | Performance and capacity acceptance | IN_PROGRESS — implementation merged | PR #69 merged as `f2926554e1ea0c58befa3b8c60c698e3176de3ea`; exact tested head `333126231bedbbe89c82fdaf67b3d7512b84ad4f`. Focused runner tests, CI `42068905894`, Security `42068905643`, and Docker `42068905375` all passed. Representative staging load, resource/queue/storage telemetry, and approved SLO acceptance remain outstanding. |
 | KV-010 | Production storage and recovery decisions | BLOCKED — decision | Select provider and document TLS, IAM, residency, replication, retention/Object Lock, backup target, RPO/RTO, cost, and recovery ownership. Do not infer these choices from Compose defaults. |
 | KV-011 | Release security review | DEFERRED — final phase | Run comprehensive threat-model and security review after functional, tenant, staging, recovery and performance gates are closed. Routine CI security scans remain mandatory throughout. |
-| KV-012 | Branch protection / merge governance | OPEN — repository setting | Verify required checks and review rules on `main`. Configuration must be changed in repository settings by an authorized maintainer; code changes cannot substitute for this setting. |
+| KV-012 | Branch protection / merge governance | OPEN — repository setting | Rechecked after PR #79: `main` reports `protected: false`; protection endpoint reports `enabled: false`, required checks enforcement `off`, and no required contexts. Must be configured by an authorized maintainer in repository settings. |
 
 ## 4. PR #63 — closed with exact-head evidence
 
@@ -262,3 +262,72 @@ All three required workflows passed on the exact PR head: KRAVIGIL CI [423826461
 The merged `docs/operations/STAGING_ACCEPTANCE.md` defines environment isolation, pinned artifacts, health checks, authentication/MFA, tenant/RLS, scanner scope, scan/report/evidence workflows, scheduler/worker runtime proof, backup/replication, observability, and evidence-based PASS/INCOMPLETE/FAIL decisions.
 
 **Operational boundary:** the runbook is documentation, not deployment evidence. KV-008 remains `BLOCKED — operational` until a real authorized staging deployment and the required runtime checks are recorded. KV-007, KV-009, KV-010, KV-011, and KV-012 remain at their existing evidence-bounded states. Production remains **NO-GO**.
+
+
+## 4.9 PR #77 — Staging acceptance runbook — merged
+
+**PR:** [#77 — Add staging acceptance runbook](https://github.com/mohamedelghazali/KRAVIGIL/pull/77)  
+**Merge commit:** `3828bf1507ee3652bafd29f474f3a81cf783eff4`
+
+The staging acceptance procedure is present in `docs/operations/STAGING_ACCEPTANCE.md`. It defines isolation, synthetic data, credentials, authorized scan scope, service health, authentication, tenant isolation, scan/report/evidence lifecycle, scheduler/worker evidence, backup/replication, observability, and PASS / INCOMPLETE / FAIL outcomes. This is a runbook only; it does not prove a live staging deployment. KV-008 remains operationally blocked.
+
+## 4.10 PR #78 — Off-host restore evidence template — merged
+
+**PR:** [#78 — Prepare off-host restore drill evidence pack](https://github.com/mohamedelghazali/KRAVIGIL/pull/78)  
+**Tested head SHA:** `8719914c20ff693314250743a088dfbabff3e59b`  
+**Merge commit:** `98ade9baa970c9d09f7f5f5843fe6f6ac9a06ddd`
+
+Added `docs/operations/RESTORE_DRILL_EVIDENCE_TEMPLATE.md` and reconciled the work register with PR #77. The template captures authorization, off-host artifact identity, checksums, decryption, PostgreSQL restore, restricted-role/RLS checks, evidence object integrity, application smoke tests, scheduler/worker checks, measured RPO/RTO, cleanup, and independent sign-off. It does not prove a real restore; KV-007 remains operationally blocked.
+
+The following post-merge workflows passed on the exact PR #78 merge commit:
+
+| Workflow | Run ID | Exact SHA | Result |
+|---|---:|---|---|
+| KRAVIGIL CI | `42383764723` | `3828bf1507ee3652bafd29f474f3a81cf783eff4` | Passed |
+| Security Scans | `42383764748` | `3828bf1507ee3652bafd29f474f3a81cf783eff4` | Passed |
+| Docker Image Build Verification | `42383764801` | `3828bf1507ee3652bafd29f474f3a81cf783eff4` | Passed |
+
+The required PR-head workflows also passed before PR #78 was merged.
+
+## 4.11 PR #79 — Deployment and release procedures — merged
+
+**PR:** [#79 — Make deployment and release procedures executable](https://github.com/mohamedelghazali/KRAVIGIL/pull/79)  
+**Tested PR head SHA:** `95e14187daf039985d050e5b0590b290f5ebd39b`  
+**Merge commit / current main SHA:** `fed45598a88c409a34e50c16b660815becd3d4a2`
+
+The PR corrected the production deployment command to `bash scripts/deploy_prod.sh`, replaced the deployment operations scaffold with an operational index, and documented the tag-triggered release workflow and five GHCR image artifacts. It is documentation-only and does not constitute a deployment or release publication.
+
+All three required workflows passed on the exact PR head:
+
+| Workflow | Run ID | Exact tested head | Result |
+|---|---:|---|---|
+| KRAVIGIL CI | `42385541953` | `95e14187daf039985d050e5b0590b290f5ebd39b` | Passed |
+| Security Scans | `42385541978` | `95e14187daf039985d050e5b0590b290f5ebd39b` | Passed |
+| Docker Image Build Verification | `42385541917` | `95e14187daf039985d050e5b0590b290f5ebd39b` | Passed |
+
+Post-merge workflows were triggered on `fed45598a88c409a34e50c16b660815becd3d4a2`; at reconciliation time all three were still running. Do not mark post-merge verification complete until their final results are recorded.
+
+## 4.12 Current GitHub state — 2026-11-07
+
+**Current main SHA:** `fed45598a88c409a34e50c16b660815becd3d4a2`
+
+| Workflow | Run ID | Exact main SHA | State at reconciliation |
+|---|---:|---|---|
+| KRAVIGIL CI | `42386395700` | `fed45598a88c409a34e50c16b660815becd3d4a2` | In progress |
+| Security Scans | `42386395720` | `fed45598a88c409a34e50c16b660815becd3d4a2` | In progress |
+| Docker Image Build Verification | `42386395677` | `fed45598a88c409a34e50c16b660815becd3d4a2` | In progress |
+
+Previously completed CI, Security, and Docker results on `3828bf1507ee3652bafd29f474f3a81cf783eff4` remain valid only for that earlier commit; they do not substitute for the post-PR #79 checks.
+
+## 4.13 Next execution order — GitHub-first, Staging last
+
+The agreed execution order is:
+
+1. Finish and record all GitHub workflows on the current main SHA after PR #79.
+2. Reconcile this register and close any remaining repository-only release-readiness gaps.
+3. Configure and verify main branch protection and required status checks (KV-012).
+4. Complete repository-verifiable build, release, deployment configuration, and documentation checks without provisioning Staging.
+5. Only after the GitHub/repository readiness phase is complete, provision isolated Staging and execute KV-007, KV-008, and KV-009 with real evidence.
+6. Complete the deferred final security review (KV-011) after functional and operational acceptance, as previously agreed.
+
+KV-007, KV-008, and KV-009 remain blocked on real infrastructure/evidence. KV-010 requires explicit provider, residency, retention, ownership, and RPO/RTO decisions. Production remains **NO-GO**.
