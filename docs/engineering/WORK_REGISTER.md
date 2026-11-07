@@ -1,8 +1,8 @@
 # KRAVIGIL Engineering Work Register
 
 **Purpose:** Single source of truth for release work, issue closure, and regression prevention.  
-**Last reconciled:** 2026-11-05  
-**Current main SHA at reconciliation (2026-11-05):** `5b162cf87203126b3f56f33ea71cf325602ee2ad` (PR #75 merge commit; CI, Security, and Docker workflows passed on this exact main SHA)  
+**Last reconciled:** 2026-11-07  
+**Current main SHA at reconciliation (2026-11-07):** `3828bf1507ee3652bafd29f474f3a81cf783eff4` (PR #77 merge commit; all three required PR workflows and all three post-merge workflows passed on their exact respective SHAs)  
 **Release decision:** **NO-GO for production** until every applicable release gate below has evidence.
 
 This register supplements the historical [Release Closure Execution Plan](../RELEASE_CLOSURE_PLAN.md). If historical notes conflict with this register, use the latest dated, SHA-specific entry here and preserve the historical log for auditability.
@@ -249,3 +249,16 @@ Post-merge verification on exact `main` SHA `f67871ea80fd9c3b03d556f46a7b2b39f3f
 All three required workflows passed on the exact PR head: KRAVIGIL CI `42109875150`, Security Scans `42109875265`, and Docker Image Build Verification `42109875153`. All three post-merge workflows also passed on the exact current `main` SHA: KRAVIGIL CI `42110018828`, Security Scans `42110018984`, and Docker Image Build Verification `42110018858`.
 
 This entry supersedes the earlier PR #74 reconciliation as the current-main baseline. It does not change any operational acceptance state: KV-007 remains blocked pending a real off-host restore drill; KV-008 remains blocked pending staging runtime evidence; KV-009 remains open pending representative staging load, telemetry, and approved SLOs; KV-010 remains blocked pending production storage/recovery decisions; KV-011 remains deferred; KV-012 remains open pending verified branch protection. Production remains **NO-GO**.
+
+
+## 4.12 PR #77 staging acceptance runbook — merged; runtime evidence pending
+
+**PR:** [#77 — Define staging deployment and runtime acceptance](https://github.com/mohamedelghazali/KRAVIGIL/pull/77)  
+**Tested PR head:** `6e8db62c5add6df79d0afb4fa3bc7c3da0c9548e`  
+**Merge commit / main SHA at this reconciliation:** `3828bf1507ee3652bafd29f474f3a81cf783eff4`
+
+All three required workflows passed on the exact PR head: KRAVIGIL CI [42382646151](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/42382646151), Security Scans [42382646144](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/42382646144), and Docker Image Build Verification [42382646112](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/42382646112). All three post-merge workflows also passed on exact `main` SHA `3828bf1507ee3652bafd29f474f3a81cf783eff4`: KRAVIGIL CI [42383764723](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/42383764723), Security Scans [42383764748](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/42383764748), and Docker Image Build Verification [42383764801](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/42383764801).
+
+The merged `docs/operations/STAGING_ACCEPTANCE.md` defines environment isolation, pinned artifacts, health checks, authentication/MFA, tenant/RLS, scanner scope, scan/report/evidence workflows, scheduler/worker runtime proof, backup/replication, observability, and evidence-based PASS/INCOMPLETE/FAIL decisions.
+
+**Operational boundary:** the runbook is documentation, not deployment evidence. KV-008 remains `BLOCKED — operational` until a real authorized staging deployment and the required runtime checks are recorded. KV-007, KV-009, KV-010, KV-011, and KV-012 remain at their existing evidence-bounded states. Production remains **NO-GO**.
