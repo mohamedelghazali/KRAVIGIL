@@ -2,7 +2,7 @@
 
 **Purpose:** Single source of truth for release work, issue closure, and regression prevention.  
 **Last reconciled:** 2026-11-07  
-**Current main SHA at reconciliation (2026-11-07):** `418523fb4a64ee7e4495f89e74eb33840b4fc4be` (PR #82 merge commit; all three post-merge workflows passed on this exact SHA)  
+**Current main SHA at reconciliation (2026-11-07):** `6d1ad07801ba92e8493609e5adc5fb5473d9c4c1` (PR #84 merge commit; all three post-merge workflows passed on this exact SHA)  
 **Release decision:** **NO-GO for production** until every applicable release gate below has evidence.
 
 This register supplements the historical [Release Closure Execution Plan](../RELEASE_CLOSURE_PLAN.md). If historical notes conflict with this register, use the latest dated, SHA-specific entry here and preserve the historical log for auditability.
@@ -406,3 +406,24 @@ All three required workflows passed on the exact PR head. After merge, all three
 The repository ruleset was read back from GitHub and is active. It targets `main`, requires the 12 configured job checks, requires pull requests and review-thread resolution, and blocks branch deletion and non-fast-forward updates. KV-012 is closed for repository configuration evidence.
 
 **Operational boundary:** this establishes exact-main CI/security/image-build status and repository merge governance only. It does not prove a live staging deployment, an off-host restore, representative capacity, or production acceptance. KV-007 and KV-008 remain operationally blocked; KV-009 remains open pending staging measurements and approved SLOs; KV-010 remains blocked pending accountable storage/recovery decisions; KV-011 remains deferred to the final phase. Production remains **NO-GO**.
+
+
+## 4.19 PR #84 — GitHub Release publication — merged and exact-main verified
+
+**PR:** [#84 — Publish GitHub Release after successful image publication](https://github.com/mohamedelghazali/KRAVIGIL/pull/84)  
+**Tested PR head SHA:** `bf9c36d2b459a034856b91f671cf06ce2eb49daf`  
+**Merge commit / current main SHA:** `6d1ad07801ba92e8493609e5adc5fb5473d9c4c1`
+
+PR #84 corrected the tag-triggered release workflow so that, after all five runtime images have been built and pushed successfully, the workflow creates a GitHub Release for the same version tag using generated release notes. The workflow requires `contents: write` and `packages: write`. No tag, GitHub Release, image publication, or deployment was created by merging this PR; publication remains triggered only by an intentional version-tag push.
+
+All 12 required PR checks passed on the exact PR head `bf9c36d2b459a034856b91f671cf06ce2eb49daf`: the five KRAVIGIL CI jobs, two Security Scans jobs, and five Docker image build jobs.
+
+All three post-merge workflows completed successfully on the exact current `main` SHA `6d1ad07801ba92e8493609e5adc5fb5473d9c4c1`:
+
+| Workflow | Run ID | Exact main SHA | Result |
+|---|---:|---|---|
+| KRAVIGIL CI | [42398324861](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/42398324861) | `6d1ad07801ba92e8493609e5adc5fb5473d9c4c1` | Passed |
+| Security Scans | [42398324913](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/42398324913) | `6d1ad07801ba92e8493609e5adc5fb5473d9c4c1` | Passed |
+| Docker Image Build Verification | [42398325064](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/42398325064) | `6d1ad07801ba92e8493609e5adc5fb5473d9c4c1` | Passed — all five runtime images |
+
+**Repository boundary:** PR #84 closes the GitHub Release workflow implementation gap for code/CI. It does not constitute a published release or deployment. KV-007, KV-008, KV-009, and KV-010 retain their existing operational/decision blockers. KV-011 remains deferred to the final security-review phase. KV-012 remains closed based on the active main ruleset evidence previously recorded. Production remains **NO-GO** until all applicable operational gates have evidence.
