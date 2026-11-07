@@ -2,7 +2,7 @@
 
 **Purpose:** Single source of truth for release work, issue closure, and regression prevention.  
 **Last reconciled:** 2026-11-07  
-**Current main SHA at reconciliation (2026-11-07):** `fed45598a88c409a34e50c16b660815becd3d4a2` (PR #79 merge commit; post-merge CI, Security, and Docker workflows are running and must be reconciled below before closure)  
+**Current main SHA at reconciliation (2026-11-07):** `8728c04f563c1f47a7dccb9462673bbdeea9538b` (PR #80 merge commit; all three post-merge workflows passed on this exact SHA)  
 **Release decision:** **NO-GO for production** until every applicable release gate below has evidence.
 
 This register supplements the historical [Release Closure Execution Plan](../RELEASE_CLOSURE_PLAN.md). If historical notes conflict with this register, use the latest dated, SHA-specific entry here and preserve the historical log for auditability.
@@ -48,7 +48,7 @@ A work item must include: ID, symptom/root cause, owner branch/PR, affected comp
 | KV-009 | Performance and capacity acceptance | IN_PROGRESS — implementation merged | PR #69 merged as `f2926554e1ea0c58befa3b8c60c698e3176de3ea`; exact tested head `333126231bedbbe89c82fdaf67b3d7512b84ad4f`. Focused runner tests, CI `42068905894`, Security `42068905643`, and Docker `42068905375` all passed. Representative staging load, resource/queue/storage telemetry, and approved SLO acceptance remain outstanding. |
 | KV-010 | Production storage and recovery decisions | BLOCKED — decision | Select provider and document TLS, IAM, residency, replication, retention/Object Lock, backup target, RPO/RTO, cost, and recovery ownership. Do not infer these choices from Compose defaults. |
 | KV-011 | Release security review | DEFERRED — final phase | Run comprehensive threat-model and security review after functional, tenant, staging, recovery and performance gates are closed. Routine CI security scans remain mandatory throughout. |
-| KV-012 | Branch protection / merge governance | OPEN — repository setting | Rechecked after PR #79: `main` reports `protected: false`; protection endpoint reports `enabled: false`, required checks enforcement `off`, and no required contexts. Must be configured by an authorized maintainer in repository settings. |
+| KV-012 | Branch protection / merge governance | OPEN — repository setting | Rechecked after PR #80: `main` reports `protected: false`; protection endpoint reports `enabled: false`, required checks enforcement `off`, and no required contexts. Must be configured by an authorized maintainer in repository settings. |
 
 ## 4. PR #63 — closed with exact-head evidence
 
@@ -331,3 +331,31 @@ The agreed execution order is:
 6. Complete the deferred final security review (KV-011) after functional and operational acceptance, as previously agreed.
 
 KV-007, KV-008, and KV-009 remain blocked on real infrastructure/evidence. KV-010 requires explicit provider, residency, retention, ownership, and RPO/RTO decisions. Production remains **NO-GO**.
+
+
+## 4.14 PR #80 — work-register reconciliation and exact-main verification — merged
+
+**PR:** [#80 — Reconcile release readiness after PRs 77–79](https://github.com/mohamedelghazali/KRAVIGIL/pull/80)  
+**Tested PR head SHA:** `8ce4c824fe5c51ab1640cae9a3f6324169a8b361`  
+**Merge commit / current main SHA:** `8728c04f563c1f47a7dccb9462673bbdeea9538b`
+
+PR #80 reconciled the work register after PRs #77–#79. After merge, all three required workflows completed successfully on the exact current `main` SHA:
+
+| Workflow | Run ID | Exact main SHA | Result |
+|---|---:|---|---|
+| KRAVIGIL CI | [42388174081](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/42388174081) | `8728c04f563c1f47a7dccb9462673bbdeea9538b` | Passed |
+| Security Scans | [42388174158](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/42388174158) | `8728c04f563c1f47a7dccb9462673bbdeea9538b` | Passed |
+| Docker Image Build Verification | [42388174104](https://github.com/mohamedelghazali/KRAVIGIL/actions/runs/42388174104) | `8728c04f563c1f47a7dccb9462673bbdeea9538b` | Passed — backend, worker, network-engine, frontend, and backup images |
+
+Repository state was rechecked after the workflows: no open pull requests. The `main` branch remains unprotected (`protected: false`); required status-check enforcement is off and no required contexts are configured. KV-012 therefore remains open and requires an authorized maintainer to configure repository rules.
+
+**Operational boundary:** the successful workflows establish exact-main CI, security-scan, and container-image build status only. They do not prove a live Staging deployment, off-host restore, measured capacity, or production acceptance. KV-007, KV-008, and KV-009 remain operationally blocked; KV-010 remains a decision blocker; KV-011 remains deferred to the final phase. Production remains **NO-GO**.
+
+## 4.15 Next execution order — repository closeout before Staging
+
+1. Complete KV-012 by configuring and verifying a `main` branch ruleset with pull-request protection and required checks.
+2. Finish any remaining repository-verifiable release/configuration checks without provisioning Staging.
+3. After repository closeout, provision isolated Staging and execute KV-007, KV-008, and KV-009 with real evidence.
+4. Complete the deferred final security review (KV-011) after functional and operational acceptance.
+
+KV-010 requires explicit storage-provider, residency, retention, recovery ownership, and RPO/RTO decisions. Production remains **NO-GO** until all applicable gates have evidence.
